@@ -59,7 +59,7 @@ const INITIAL_ENTRIES: FoodEntry[] = [
   }
 ];
 
-const DEFAULT_TAGS = ['早餐', '约会', '甜点', '健康', '微醺', '晚餐', '咖啡'];
+const DEFAULT_TAGS = ['早餐', '约会', '甜点', '健康', '微醺', '晚餐', '咖啡', '早午餐', '有机', '日料', '午后'];
 
 const ProfileView = () => (
   <div className="flex flex-col items-center justify-center h-screen text-stone-400 gap-4">
@@ -80,6 +80,7 @@ const App: React.FC = () => {
     return (localStorage.getItem('gourmet_layout_mode') as 'grid' | 'list') || 'grid';
   });
 
+  // Entries State
   const [entries, setEntries] = useState<FoodEntry[]>(() => {
     try {
       const saved = localStorage.getItem('gourmet_journal_entries');
@@ -89,28 +90,67 @@ const App: React.FC = () => {
     }
   });
 
-  // Derived global tags: Combine defaults with any custom tags found in entries
-  const allTags = useMemo(() => {
-    const entryTags = new Set<string>();
-    entries.forEach(e => e.tags.forEach(t => entryTags.add(t)));
-    DEFAULT_TAGS.forEach(t => entryTags.add(t));
-    return Array.from(entryTags);
-  }, [entries]);
+  // Tags State - Single Source of Truth
+  const [tags, setTags] = useState<string[]>(() => {
+      try {
+          const saved = localStorage.getItem('gourmet_tags');
+          if (saved) return JSON.parse(saved);
+          
+          // Fallback: Combine defaults with existing entry tags on first load
+          const initialTags = new Set(DEFAULT_TAGS);
+          INITIAL_ENTRIES.forEach(e => e.tags.forEach(t => initialTags.add(t)));
+          return Array.from(initialTags); // Do not sort initially to respect user order if possible
+      } catch(e) {
+          return DEFAULT_TAGS;
+      }
+  });
+
+  // Persist Tags
+  useEffect(() => {
+      localStorage.setItem('gourmet_tags', JSON.stringify(tags));
+  }, [tags]);
 
   const handleUpdateEntries = (newEntries: FoodEntry[]) => {
       setEntries(newEntries);
       localStorage.setItem('gourmet_journal_entries', JSON.stringify(newEntries));
   };
 
-  // Renaming a tag updates all entries that use it
+  // --- Tag Management Functions ---
+
+  const handleAddTag = (newTag: string) => {
+      if (!newTag.trim()) return;
+      const tag = newTag.trim();
+      if (!tags.includes(tag)) {
+          // Add to beginning or end? End is standard.
+          setTags(prev => [...prev, tag]); 
+      }
+  };
+
+  const handleDeleteTag = (tagToDelete: string) => {
+      setTags(prev => prev.filter(t => t !== tagToDelete));
+  };
+
+  const handleReorderTags = (newTags: string[]) => {
+      setTags(newTags);
+  };
+
+  // Renaming a tag updates the global list AND all entries that use it
   const handleRenameTag = (oldTag: string, newTag: string) => {
     if (!oldTag || !newTag || oldTag === newTag) return;
     
+    // 1. Update Global Tag List (Preserve Order)
+    setTags(prev => {
+        return prev.map(t => t === oldTag ? newTag : t);
+    });
+
+    // 2. Update Entries
     const updatedEntries = entries.map(entry => {
       if (entry.tags.includes(oldTag)) {
+        // Replace oldTag with newTag, avoid duplicates
+        const newEntryTags = entry.tags.map(t => t === oldTag ? newTag : t);
         return {
           ...entry,
-          tags: entry.tags.map(t => t === oldTag ? newTag : t)
+          tags: Array.from(new Set(newEntryTags))
         };
       }
       return entry;
@@ -118,6 +158,8 @@ const App: React.FC = () => {
     
     handleUpdateEntries(updatedEntries);
   };
+
+  // --- View Handlers ---
 
   const handleLayoutChange = (mode: 'grid' | 'list') => {
       setLayoutMode(mode);
@@ -135,6 +177,9 @@ const App: React.FC = () => {
     }
     handleUpdateEntries(updatedEntries);
     
+    // Ensure any new tags added in the entry are saved to global state
+    entry.tags.forEach(t => handleAddTag(t));
+
     if (currentView === ViewState.EDIT) {
         setCurrentView(ViewState.DETAIL);
     } else {
@@ -157,7 +202,6 @@ const App: React.FC = () => {
       else setCurrentView(ViewState.HOME);
   };
 
-  // Improved variants for smoother cross-fade, preventing white screen
   const pageVariants = {
     initial: { opacity: 0, scale: 0.99 },
     in: { opacity: 1, scale: 1 },
@@ -176,8 +220,10 @@ const App: React.FC = () => {
                 onLayoutChange={handleLayoutChange}
                 initialScroll={homeScrollPos}
                 onScrollSave={setHomeScrollPos}
-                allTags={allTags} // Pass synced tags
-                onRenameTag={handleRenameTag} // Pass rename handler
+                tags={tags} 
+                onRenameTag={handleRenameTag}
+                onDeleteTag={handleDeleteTag}
+                onReorderTags={handleReorderTags}
             />
         );
       case ViewState.SEARCH:
@@ -187,7 +233,8 @@ const App: React.FC = () => {
           <AddEntryView 
             onSave={handleSaveEntry} 
             onCancel={() => setCurrentView(ViewState.HOME)} 
-            globalTags={allTags} // Pass synced tags
+            availableTags={tags}
+            onAddTag={handleAddTag}
           />
         );
       case ViewState.PROFILE:
@@ -202,7 +249,8 @@ const App: React.FC = () => {
                 initialEntry={editEntry} 
                 onSave={handleSaveEntry} 
                 onCancel={handleBack}
-                globalTags={allTags}
+                availableTags={tags}
+                onAddTag={handleAddTag}
             />
         ) : null;
       default:
@@ -220,7 +268,6 @@ const App: React.FC = () => {
       <div className="fixed bottom-[-10%] left-[-10%] w-[60vw] h-[60vw] bg-warm-gray-100/40 rounded-full blur-[120px] pointer-events-none z-0 mix-blend-multiply" />
 
       <main className="relative z-10 w-full min-h-screen safe-area-bottom">
-        {/* Removed mode="wait" to allow overlap and prevent white flash */}
         <AnimatePresence initial={false}>
           <motion.div
             key={currentView}
@@ -228,8 +275,8 @@ const App: React.FC = () => {
             animate="in"
             exit="out"
             variants={pageVariants}
-            transition={{ duration: 0.25, ease: "easeInOut" }} // Faster, smoother transition
-            className="w-full h-full absolute inset-0" // Absolute positioning needed for overlap
+            transition={{ duration: 0.25, ease: "easeInOut" }} 
+            className="w-full h-full absolute inset-0" 
             style={{ 
               overflowY: currentView === ViewState.HOME ? 'hidden' : 'auto', 
               height: '100%' 

@@ -10,10 +10,11 @@ interface AddEntryViewProps {
   initialEntry?: FoodEntry;
   onSave: (entry: FoodEntry) => void;
   onCancel?: () => void;
-  globalTags: string[]; // Received from App
+  availableTags: string[]; // Received from App
+  onAddTag: (tag: string) => void; // Call to add global tag
 }
 
-export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, initialEntry, globalTags }) => {
+export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, initialEntry, availableTags, onAddTag }) => {
   // State for form fields
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
@@ -30,7 +31,6 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
   const imageTimerRef = useRef<{ [key: number]: number }>({});
 
   // Tags
-  const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   
   const [weather, setWeather] = useState<WeatherInfo | undefined>(undefined);
@@ -39,9 +39,6 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
   
   // Initialize Data
   useEffect(() => {
-    // Sync with global tags
-    setAvailableTags(globalTags);
-
     if (initialEntry) {
         setTitle(initialEntry.title);
         setLocation(initialEntry.location);
@@ -60,7 +57,7 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
         setSelectedTags(initialEntry.tags);
         setWeather(initialEntry.weather);
     }
-  }, [initialEntry, globalTags]);
+  }, [initialEntry]);
 
   const toggleTag = (tag: string) => {
     if (selectedTags.includes(tag)) {
@@ -70,14 +67,14 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
     }
   };
 
-  const handleAddTag = () => {
+  const handleCreateTag = () => {
     const inputValue = window.prompt("请输入新标签名称：");
     if (!inputValue || inputValue.trim() === "") return;
 
     const tag = inputValue.trim();
-    if (!availableTags.includes(tag)) {
-        setAvailableTags(prev => [...prev, tag]);
-    }
+    // Add to global state immediately
+    onAddTag(tag);
+    // Select it locally
     if (!selectedTags.includes(tag)) {
         setSelectedTags(prev => [...prev, tag]);
     }
@@ -377,7 +374,7 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
                         ))}
                     </AnimatePresence>
                     <button 
-                        onClick={handleAddTag}
+                        onClick={handleCreateTag}
                         className="h-7 px-3 rounded-full border border-dashed border-stone-300 flex items-center justify-center text-stone-400 hover:border-stone-500 hover:text-stone-600 transition-all active:scale-95 bg-white/50"
                     >
                         <Plus size={12} />
