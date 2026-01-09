@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, Navigation, Search, X, Loader2, Building2, Pencil, Map } from 'lucide-react';
 
@@ -7,111 +7,148 @@ interface LocationPickerProps {
   onChange: (location: string) => void;
 }
 
+// AMap Types (Simplified for TS)
+declare global {
+  interface Window {
+    AMap: any;
+  }
+}
+
 export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLocating, setIsLocating] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
-  const [coords, setCoords] = useState<{lat: number, lng: number} | null>(null);
   const [searchResults, setSearchResults] = useState<any[]>([]);
+  
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<any>(null);
+  const placeSearchRef = useRef<any>(null);
+  const markerRef = useRef<any>(null);
+  const geocoderRef = useRef<any>(null);
 
-  // Debounced search for China-optimized results
+  // Initialize AMap when modal opens
   useEffect(() => {
-    const delayDebounceFn = setTimeout(async () => {
-      if (searchTerm.length > 1) {
-        setIsSearching(true);
-        try {
-            // Use OSM Nominatim which is free and works in China
-            // Limit to China region preference if possible, but general search works fine
-            const response = await fetch(
-                `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchTerm)}&format=json&addressdetails=1&limit=5&accept-language=zh-CN`
-            );
-            const data = await response.json();
-            setSearchResults(data);
-        } catch (error) {
-            console.error("Search failed", error);
-        } finally {
-            setIsSearching(false);
-        }
-      } else {
-          setSearchResults([]);
-      }
-    }, 800);
+    if (isOpen && !mapInstanceRef.current && window.AMap) {
+        // Delay slightly to ensure DOM is ready
+        setTimeout(() => {
+            if (mapContainerRef.current) {
+                mapInstanceRef.current = new window.AMap.Map(mapContainerRef.current, {
+                    zoom: 15,
+                    resizeEnable: true,
+                    mapStyle: "amap://styles/whitesmoke" // Clean style
+                });
 
-    return () => clearTimeout(delayDebounceFn);
+                // Init Plugins
+                window.AMap.plugin(['AMap.PlaceSearch', 'AMap.Geolocation', 'AMap.Geocoder', 'AMap.AutoComplete'], function(){
+                    placeSearchRef.current = new window.AMap.PlaceSearch({
+                        pageSize: 5,
+                        pageIndex: 1,
+                        extensions: 'all'
+                    });
+                    
+                    geocoderRef.current = new window.AMap.Geocoder({
+                        city: "010", 
+                        radius: 1000 
+                    });
+                });
+
+                // Click map to pick location
+                mapInstanceRef.current.on('click', (e: any) => {
+                    const { lng, lat } = e.lnglat;
+                    updateMarker(lng, lat);
+                    // Reverse Geocode
+                    if(geocoderRef.current) {
+                        geocoderRef.current.getAddress([lng, lat], function(status: string, result: any) {
+                            if (status === 'complete' && result.regeocode) {
+                                const address = result.regeocode.formattedAddress;
+                                // Try to get a POI
+                                const pois = result.regeocode.pois;
+                                let name = address;
+                                if(pois && pois.length > 0) {
+                                    name = pois[0].name;
+                                }
+                                setSearchTerm(name);
+                            }
+                        });
+                    }
+                });
+            }
+        }, 100);
+    }
+  }, [isOpen]);
+
+  const updateMarker = (lng: number, lat: number) => {
+      if(!mapInstanceRef.current || !window.AMap) return;
+      
+      if(markerRef.current) {
+          markerRef.current.setPosition([lng, lat]);
+      } else {
+          markerRef.current = new window.AMap.Marker({
+              position: new window.AMap.LngLat(lng, lat),
+              anchor: 'bottom-center'
+          });
+          mapInstanceRef.current.add(markerRef.current);
+      }
+      mapInstanceRef.current.setCenter([lng, lat]);
+  };
+
+  // Search
+  useEffect(() => {
+      const delayDebounceFn = setTimeout(() => {
+          if (searchTerm.length > 0 && placeSearchRef.current) {
+               placeSearchRef.current.search(searchTerm, (status: string, result: any) => {
+                   if(status === 'complete' && result.info === 'OK') {
+                       setSearchResults(result.poiList.pois);
+                   } else {
+                       setSearchResults([]);
+                   }
+               });
+          } else {
+              setSearchResults([]);
+          }
+      }, 500);
+      return () => clearTimeout(delayDebounceFn);
   }, [searchTerm]);
 
   const handleGetCurrentLocation = () => {
     setIsLocating(true);
-    if (!navigator.geolocation) {
-        alert("您的浏览器不支持地理定位");
+    if (!window.AMap) {
+        alert("地图加载中，请稍候...");
         setIsLocating(false);
         return;
     }
 
-    const success = async (position: GeolocationPosition) => {
-        const { latitude, longitude } = position.coords;
-        setCoords({ lat: latitude, lng: longitude });
-        
-        try {
-            // Reverse geocode with zh-CN preference
-            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1&accept-language=zh-CN`);
-            const data = await response.json();
-            
-            const addr = data.address;
-            
-            // Priority: Specific Point -> Street -> District
-            const placeName = addr.amenity || addr.shop || addr.building || addr.tourism || addr.road || "我的位置";
-            const district = addr.district || addr.city || "";
-            
-            // Format: District · Place (e.g., 朝阳区 · 三里屯)
-            const formatted = district ? `${district} · ${placeName}` : placeName;
-            
-            setSearchTerm(formatted);
-            setSearchResults([{
-                display_name: formatted,
-                isCurrent: true,
-                lat: latitude,
-                lon: longitude,
-                address: addr
-            }]);
-        } catch (e) {
-            console.error("Geocoding failed", e);
-            // Fallback
-            const simpleLoc = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-            setSearchTerm(simpleLoc);
-        } finally {
-            setIsLocating(false);
-        }
-    };
-
-    const error = (err: GeolocationPositionError) => {
-        console.error(err);
-        setIsLocating(false);
-        alert("定位失败。请检查系统定位开关或浏览器权限。");
-    };
-
-    navigator.geolocation.getCurrentPosition(success, error, {
+    const geolocation = new window.AMap.Geolocation({
         enableHighAccuracy: true,
         timeout: 10000,
-        maximumAge: 0
+    });
+
+    geolocation.getCurrentPosition((status: string, result: any) => {
+        setIsLocating(false);
+        if(status === 'complete'){
+            const { lng, lat } = result.position;
+            updateMarker(lng, lat);
+            // Format address
+            // result.formattedAddress, result.addressComponent
+            const name = result.formattedAddress || "我的位置";
+            // Make it shorter: District + POI
+            let shortName = name;
+            if(result.addressComponent) {
+                const { district, township, street } = result.addressComponent;
+                shortName = (district || "") + " · " + (street || township || "当前位置");
+            }
+            setSearchTerm(shortName);
+        } else {
+            console.error(result);
+            alert("定位失败");
+        }
     });
   };
 
-  const confirmLocation = (loc: string, lat?: string, lng?: string) => {
-      // Clean up location string if it's too long (common with OSM results)
-      let cleanLoc = loc;
-      
-      // If user selected a search result that isn't already formatted by us
-      if (loc.includes(',') && !loc.includes('·')) {
-          const parts = loc.split(',');
-          // Just take the first part (usually the specific place name)
-          cleanLoc = parts[0].trim();
-      }
-      
-      onChange(cleanLoc);
-      if (lat && lng) {
-          setCoords({ lat: parseFloat(lat), lng: parseFloat(lng) });
+  const confirmLocation = (name: string, location?: any) => {
+      onChange(name);
+      if(location && mapInstanceRef.current) {
+          updateMarker(location.lng, location.lat);
       }
       setIsOpen(false);
   };
@@ -157,7 +194,6 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
                             className="w-full bg-stone-100 rounded-full pl-10 pr-10 py-2.5 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-200 transition-all"
                         />
                         <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
-                        {isSearching && <Loader2 size={16} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-stone-400 animate-spin" />}
                     </div>
                 </motion.div>
 
@@ -168,28 +204,9 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
                     exit={{ opacity: 0 }}
                     className="flex-1 relative overflow-hidden flex flex-col"
                 >
-                    {/* Pseudo-Source Map (OpenStreetMap Iframe) */}
+                    {/* AMap Container */}
                     <div className="h-[40vh] w-full bg-stone-200 relative">
-                        {coords ? (
-                            <iframe
-                                width="100%"
-                                height="100%"
-                                frameBorder="0"
-                                scrolling="no"
-                                marginHeight={0}
-                                marginWidth={0}
-                                // Simple OSM Embed
-                                src={`https://www.openstreetmap.org/export/embed.html?bbox=${coords.lng - 0.005}%2C${coords.lat - 0.005}%2C${coords.lng + 0.005}%2C${coords.lat + 0.005}&layer=mapnik&marker=${coords.lat}%2C${coords.lng}`}
-                                className="opacity-90 grayscale-[20%]"
-                            ></iframe>
-                        ) : (
-                            <div className="absolute inset-0 flex items-center justify-center text-stone-400 bg-stone-100">
-                                <div className="flex flex-col items-center gap-2">
-                                    <Map size={32} className="opacity-30" />
-                                    <span className="text-xs tracking-widest uppercase">点击下方定位获取地图</span>
-                                </div>
-                            </div>
-                        )}
+                        <div ref={mapContainerRef} className="w-full h-full" />
                         
                         {/* Locate Button */}
                         <button
@@ -227,28 +244,28 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
                              {searchResults.map((result, i) => (
                                 <button 
                                     key={i}
-                                    onClick={() => confirmLocation(result.display_name, result.lat, result.lon)}
+                                    onClick={() => confirmLocation(result.name, result.location)}
                                     className="w-full text-left p-4 rounded-2xl hover:bg-stone-50 transition-colors flex items-center gap-3 border-b border-stone-50 last:border-0"
                                 >
-                                    <div className={`w-10 h-10 flex-shrink-0 rounded-full flex items-center justify-center ${result.isCurrent ? 'bg-blue-50 text-blue-500' : 'bg-stone-100 text-stone-500'}`}>
-                                        {result.isCurrent ? <Navigation size={18} className="fill-current" /> : <Building2 size={18} />}
+                                    <div className={`w-10 h-10 flex-shrink-0 rounded-full flex items-center justify-center bg-stone-100 text-stone-500`}>
+                                        <Building2 size={18} />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="text-sm font-medium text-stone-800 line-clamp-1">
-                                            {result.display_name.split(',')[0]}
+                                            {result.name}
                                         </div>
                                         <div className="text-xs text-stone-400 mt-0.5 line-clamp-1">
-                                            {result.display_name}
+                                            {result.address || result.type}
                                         </div>
                                     </div>
                                 </button>
                              ))}
 
                              {/* Default Empty State */}
-                             {searchResults.length === 0 && searchTerm.length === 0 && !isSearching && (
+                             {searchResults.length === 0 && searchTerm.length === 0 && (
                                  <div className="text-center py-10 text-stone-300">
-                                     <p className="text-xs tracking-widest mb-2">国内地图源 · 免Key定位</p>
-                                     <p className="text-[10px] text-stone-200">支持商铺、地标、街道搜索</p>
+                                     <p className="text-xs tracking-widest mb-2">高德地图 · 精准搜索</p>
+                                     <p className="text-[10px] text-stone-200">输入关键词或点击地图选点</p>
                                  </div>
                              )}
                         </div>

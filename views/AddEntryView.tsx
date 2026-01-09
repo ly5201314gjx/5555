@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Tag, Plus, Save, Star, ArrowLeft, X, Check, ImagePlus, Trash2 } from 'lucide-react';
+import { Camera, Tag, Plus, Save, Star, ArrowLeft, X, Check, ImagePlus, Trash2, CheckCircle } from 'lucide-react';
 import { MiniCapsule } from '../components/MiniCapsule';
 import { LocationPicker } from '../components/LocationPicker';
 import { WeatherWidget } from '../components/WeatherWidget';
@@ -36,6 +36,10 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
   const [weather, setWeather] = useState<WeatherInfo | undefined>(undefined);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Saving States
+  const [isSaving, setIsSaving] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
   
   // Initialize Data
   useEffect(() => {
@@ -210,11 +214,16 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
 
 
   const handleSave = () => {
+      // Prevent multiple clicks
+      if (isSaving) return;
+
       if (!title) {
           alert("请输入标题");
           return;
       }
       
+      setIsSaving(true);
+
       const newEntry: FoodEntry = {
           id: initialEntry ? initialEntry.id : Date.now().toString(),
           title,
@@ -228,7 +237,19 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
           weather: weather
       };
       
-      onSave(newEntry);
+      // Simulate save delay for feedback, then call actual save
+      setTimeout(() => {
+          onSave(newEntry);
+          setShowSuccess(true);
+          
+          // Wait a bit for the success animation before unmounting/closing
+          setTimeout(() => {
+              // The parent component usually handles the view switch, 
+              // but we rely on onSave triggering a state change in parent.
+              // We just reset saving state for safety.
+              setIsSaving(false);
+          }, 1000);
+      }, 500);
   };
 
   const inputClass = "w-full bg-white/50 backdrop-blur-md border border-stone-200/50 rounded-2xl px-5 py-3 text-sm text-stone-700 placeholder-stone-400 focus:outline-none focus:bg-white/80 focus:border-stone-300 focus:shadow-sm transition-all duration-300";
@@ -449,14 +470,43 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
                         animate={{ y: 0, opacity: 1 }}
                         exit={{ y: 50, opacity: 0 }}
                         onClick={handleSave}
-                        className="pointer-events-auto bg-stone-800 text-stone-50 px-8 py-3 rounded-full shadow-lg shadow-stone-300/50 flex items-center gap-3 hover:bg-stone-900 active:scale-95 transition-all duration-300"
+                        disabled={isSaving}
+                        className={`pointer-events-auto px-8 py-3 rounded-full shadow-lg flex items-center gap-3 transition-all duration-300 ${
+                            isSaving 
+                                ? 'bg-stone-300 text-stone-500 cursor-not-allowed' 
+                                : 'bg-stone-800 text-stone-50 hover:bg-stone-900 active:scale-95 shadow-stone-300/50'
+                        }`}
                     >
                         <Save size={18} strokeWidth={2} />
-                        <span className="text-sm font-medium tracking-widest">保存记录</span>
+                        <span className="text-sm font-medium tracking-widest">{isSaving ? '保存中...' : '保存记录'}</span>
                     </motion.button>
                 )}
             </AnimatePresence>
         </div>
+
+        {/* Success Modal */}
+        <AnimatePresence>
+            {showSuccess && (
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/10 backdrop-blur-sm"
+                >
+                    <motion.div
+                        initial={{ scale: 0.8, y: 10 }}
+                        animate={{ scale: 1, y: 0 }}
+                        exit={{ scale: 0.9, opacity: 0 }}
+                        className="bg-white/95 backdrop-blur-xl rounded-3xl p-6 shadow-2xl flex flex-col items-center gap-3"
+                    >
+                        <div className="w-12 h-12 bg-green-100 text-green-500 rounded-full flex items-center justify-center">
+                            <CheckCircle size={28} />
+                        </div>
+                        <h3 className="text-stone-800 font-bold text-sm">保存成功</h3>
+                    </motion.div>
+                </motion.div>
+            )}
+        </AnimatePresence>
 
       </motion.div>
     </div>

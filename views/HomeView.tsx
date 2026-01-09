@@ -318,8 +318,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
     >
       <div className="pb-36 pt-safe-top px-4 max-w-2xl mx-auto min-h-screen">
         
-        {/* Header Row */}
-        <div className="flex items-center justify-between mb-4 pt-4 px-1">
+        {/* Header Row - Slightly Reduced margin */}
+        <div className="flex items-center justify-between mb-2 pt-2 px-1">
             <AnimatePresence mode="wait">
                 {isSelectionMode ? (
                     <motion.div 
@@ -372,7 +372,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
 
         {/* Category Bar with Sliding Module Visualization & Visible Scrollbar */}
-        <div className="sticky top-4 z-40 mb-6 px-1">
+        {/* Adjusted: sticky top-2 for slightly higher position, reduced padding/margin for compact look */}
+        <div className="sticky top-2 z-40 mb-4 px-1">
             <AnimatePresence>
                 {!isSelectionMode && (
                     <motion.div 
@@ -381,11 +382,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
                         exit={{ opacity: 0, y: -20, height: 0 }}
                         className="w-full"
                     >
-                        <div className="bg-white/80 backdrop-blur-xl border border-white/50 shadow-xl shadow-stone-200/40 rounded-[24px] p-2 pb-1 relative flex flex-col">
-                             {/* Scroll Container with Snap & Custom Styled Scrollbar */}
-                             {/* The arbitrary classes customize the webkit scrollbar to act as the "sliding horizontal bar" */}
-                             <div className="w-full overflow-x-auto touch-pan-x overscroll-contain snap-x snap-mandatory pb-2 [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-track]:mx-4 [&::-webkit-scrollbar-thumb]:bg-stone-300/80 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-stone-400">
-                                <div className="flex gap-3 px-2 items-center w-max min-w-full">
+                        {/* More compact container, rounded-2xl */}
+                        <div className="bg-white/85 backdrop-blur-xl border border-white/50 shadow-lg shadow-stone-200/30 rounded-2xl p-1.5 pb-0.5 relative flex flex-col">
+                             {/* Scrollbar styling refined */}
+                             <div className="w-full overflow-x-auto touch-pan-x overscroll-contain snap-x snap-mandatory pb-1.5 [&::-webkit-scrollbar]:h-0.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-track]:mx-4 [&::-webkit-scrollbar-thumb]:bg-stone-300/80 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-stone-400">
+                                <div className="flex gap-2 px-1 items-center w-max min-w-full">
                                     {categories.map((cat) => (
                                         <motion.div key={cat} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-shrink-0 snap-start">
                                             <MiniCapsule 
@@ -393,12 +394,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
                                                 active={activeCategory === cat} 
                                                 onClick={() => setActiveCategory(cat)}
                                                 onLongPress={() => handleTagLongPress(cat)}
-                                                // Enhanced Visuals for "Module" feel - blocky and distinct
-                                                className={`!py-2.5 !px-6 !text-xs shadow-sm transition-all duration-300 ${activeCategory === cat ? '!shadow-md !bg-stone-800 !text-white scale-100 ring-2 ring-stone-800 ring-offset-1' : '!bg-white !border-stone-100 !text-stone-500 hover:!bg-stone-50 hover:scale-[1.02]'}`}
+                                                // More exquisite styling: smaller text [10px], tighter padding
+                                                className={`!py-1.5 !px-4 !text-[10px] shadow-sm transition-all duration-300 ${activeCategory === cat ? '!shadow-md !bg-stone-800 !text-white scale-100 ring-1 ring-stone-800' : '!bg-white !border-stone-100 !text-stone-500 hover:!bg-stone-50 hover:scale-[1.02]'}`}
                                             />
                                         </motion.div>
                                     ))}
-                                    <div className="w-2 flex-shrink-0" />
+                                    <div className="w-1 flex-shrink-0" />
                                 </div>
                              </div>
                         </div>

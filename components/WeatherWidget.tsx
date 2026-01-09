@@ -17,14 +17,25 @@ const WEATHER_TYPES = [
   { code: 3, label: '阴天', icon: Wind, color: 'text-stone-400' },
 ];
 
-const CACHE_KEY = 'gourmet_weather_cache';
+// Helper to map AMap weather string to our code
+const mapAMapWeatherToCode = (weather: string): number => {
+    if(weather.includes('晴')) return 0;
+    if(weather.includes('多云')) return 1;
+    if(weather.includes('阴')) return 3;
+    if(weather.includes('雨') && weather.includes('雷')) return 95;
+    if(weather.includes('雨')) return 61;
+    if(weather.includes('雪')) return 71;
+    return 1; // Default
+};
+
+const CACHE_KEY = 'gourmet_weather_cache_amap';
 const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
 
 export const WeatherWidget: React.FC<WeatherWidgetProps> = ({ value, onChange }) => {
   const [loading, setLoading] = useState(false);
   const [showSelector, setShowSelector] = useState(false);
 
-  // Auto-load cache on mount if no value is present
+  // Auto-load cache
   useEffect(() => {
     if (!value) {
         try {
@@ -43,13 +54,8 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({ value, onChange })
 
   const fetchWeather = (forceRefresh = false) => {
     setLoading(true);
-    if (!navigator.geolocation) {
-      alert("您的设备不支持定位");
-      setLoading(false);
-      return;
-    }
-
-    // Check cache first if not forcing
+    
+    // Check cache
     if (!forceRefresh) {
         try {
             const cached = localStorage.getItem(CACHE_KEY);
@@ -61,89 +67,61 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({ value, onChange })
                     return;
                 }
             }
-        } catch (e) {
-            // ignore
-        }
+        } catch (e) { }
     }
 
-    const success = async (position: GeolocationPosition) => {
-        try {
-          const { latitude, longitude } = position.coords;
-          
-          // 1. Get Location Name (Optimized for Chinese Addresses)
-          let locationName = '本地';
-          try {
-             // Use Nominatim (OSM) for reverse geocoding
-             const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=12&addressdetails=1&accept-language=zh-CN`);
-             const geoData = await geoRes.json();
-             
-             const addr = geoData.address;
-             // Priority: District (Qu) -> Suburb -> County -> City (Shi) -> Town
-             // This logic ensures we get "Chaoyang District" instead of just "Beijing" if possible
-             const region = addr.district || addr.suburb || addr.county;
-             const city = addr.city || addr.state;
-             
-             if (region) {
-                 locationName = region;
-             } else if (city) {
-                 locationName = city;
-             } else {
-                 locationName = addr.town || addr.village || '未知地区';
-             }
-          } catch(e) {
-              console.warn("Location fetch failed, using fallback");
-          }
-
-          // 2. Get Weather (Open-Meteo)
-          const res = await fetch(
-            `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true&timezone=auto`
-          );
-          const data = await res.json();
-          const { temperature, weathercode } = data.current_weather;
-          
-          let mappedCode = 0;
-          if (weathercode === 0) mappedCode = 0;
-          else if (weathercode >= 1 && weathercode <= 3) mappedCode = 1;
-          else if (weathercode >= 45 && weathercode <= 48) mappedCode = 3;
-          else if (weathercode >= 51 && weathercode <= 67) mappedCode = 61;
-          else if (weathercode >= 71 && weathercode <= 86) mappedCode = 71;
-          else if (weathercode >= 95) mappedCode = 95;
-          else mappedCode = 1;
-
-          const type = WEATHER_TYPES.find(t => t.code === mappedCode) || WEATHER_TYPES[0];
-
-          const newWeather = {
-            temperature: Math.round(temperature),
-            code: mappedCode,
-            condition: type.label,
-            locationName
-          };
-
-          // Save to Cache
-          localStorage.setItem(CACHE_KEY, JSON.stringify({
-              timestamp: Date.now(),
-              data: newWeather
-          }));
-
-          onChange(newWeather);
-        } catch (error) {
-          console.error("Weather fetch failed", error);
-          alert("获取天气失败，请检查网络");
-        } finally {
-          setLoading(false);
-        }
-    };
-
-    const error = (err: GeolocationPositionError) => {
+    if (!window.AMap) {
+        alert("地图服务初始化中，请稍后再试");
         setLoading(false);
-        console.error(err);
-        alert("无法定位，请确保浏览器已授权位置权限");
-    };
+        return;
+    }
 
-    navigator.geolocation.getCurrentPosition(success, error, {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 60000
+    window.AMap.plugin('AMap.Weather', function() {
+        // Create Weather Instance
+        const weather = new window.AMap.Weather();
+        
+        // Use Adcode or City. 
+        // We first need to know where we are. Using AMap.Geolocation first.
+        window.AMap.plugin('AMap.Geolocation', function() {
+            const geolocation = new window.AMap.Geolocation({
+                enableHighAccuracy: true,
+                timeout: 5000,
+            });
+
+            geolocation.getCurrentPosition(function(status: string, result: any){
+                if(status === 'complete'){
+                    // Get Adcode (District code) for accurate weather
+                    const adcode = result.addressComponent.adcode;
+                    const district = result.addressComponent.district;
+
+                    weather.getLive(adcode, function(err: any, data: any) {
+                        setLoading(false);
+                        if (!err) {
+                            const code = mapAMapWeatherToCode(data.weather);
+                            const newWeather = {
+                                temperature: parseInt(data.temperature),
+                                code: code,
+                                condition: data.weather,
+                                locationName: district || data.city
+                            };
+
+                            localStorage.setItem(CACHE_KEY, JSON.stringify({
+                                timestamp: Date.now(),
+                                data: newWeather
+                            }));
+                            
+                            onChange(newWeather);
+                        } else {
+                            console.error(err);
+                            alert("天气查询失败");
+                        }
+                    });
+                } else {
+                    setLoading(false);
+                    alert("定位失败，无法获取天气");
+                }
+            });
+        });
     });
   };
 
@@ -192,7 +170,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({ value, onChange })
                     {/* Location Name Display */}
                     <div className="flex-1 flex flex-col justify-center min-w-0 px-1 border-r border-stone-200">
                         <span className="text-[10px] text-stone-400 line-clamp-1">{value.locationName || '未知'}</span>
-                        <span className="text-[10px] text-stone-600 font-medium">{currentType?.label}</span>
+                        <span className="text-[10px] text-stone-600 font-medium">{currentType?.label || value.condition}</span>
                     </div>
 
                     {/* Temperature Input */}

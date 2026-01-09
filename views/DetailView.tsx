@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, MapPin, Edit3, Calendar, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, Wind, Download, X, Maximize2 } from 'lucide-react';
+import { ArrowLeft, MapPin, Edit3, Calendar, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, Wind, Download, X, Maximize2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { FoodEntry } from '../types';
 import { MiniCapsule } from '../components/MiniCapsule';
 
@@ -21,12 +21,33 @@ const WeatherIconMap: Record<number, React.ElementType> = {
 
 export const DetailView: React.FC<DetailViewProps> = ({ entry, onBack, onEdit }) => {
   const [viewImage, setViewImage] = useState<string | null>(null);
-  
+  const [viewIndex, setViewIndex] = useState<number>(0);
+
   const WeatherIcon = entry.weather ? (WeatherIconMap[entry.weather.code] || Sun) : null;
   
   const images = entry.images && entry.images.length > 0 ? entry.images : [(entry as any).imageUrl];
   const coverImage = images[entry.coverImageIndex || 0] || images[0];
   const otherImages = images.filter((_, idx) => idx !== (entry.coverImageIndex || 0));
+
+  const handleOpenImage = (img: string) => {
+      const idx = images.indexOf(img);
+      setViewIndex(idx >= 0 ? idx : 0);
+      setViewImage(img);
+  };
+
+  const handleNextImage = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      const nextIndex = (viewIndex + 1) % images.length;
+      setViewIndex(nextIndex);
+      setViewImage(images[nextIndex]);
+  };
+
+  const handlePrevImage = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      const prevIndex = (viewIndex - 1 + images.length) % images.length;
+      setViewIndex(prevIndex);
+      setViewImage(images[prevIndex]);
+  };
 
   const handleDownload = (e: React.MouseEvent, url: string) => {
       e.stopPropagation();
@@ -74,7 +95,7 @@ export const DetailView: React.FC<DetailViewProps> = ({ entry, onBack, onEdit })
       {/* Hero Image (Cover) */}
       <motion.div 
         className="relative w-full h-[55vh] cursor-zoom-in group"
-        onClick={() => setViewImage(coverImage)}
+        onClick={() => handleOpenImage(coverImage)}
         initial={{ scale: 1.1, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ duration: 0.6, ease: [0.33, 1, 0.68, 1] }} // Slow ease-out
@@ -161,7 +182,7 @@ export const DetailView: React.FC<DetailViewProps> = ({ entry, onBack, onEdit })
                             <motion.div 
                                 key={idx} 
                                 className="rounded-xl overflow-hidden aspect-square cursor-pointer shadow-sm hover:opacity-90 transition-opacity"
-                                onClick={() => setViewImage(img)}
+                                onClick={() => handleOpenImage(img)}
                                 whileTap={{ scale: 0.95 }}
                             >
                                 <img src={img} className="w-full h-full object-cover" loading="lazy" />
@@ -199,14 +220,37 @@ export const DetailView: React.FC<DetailViewProps> = ({ entry, onBack, onEdit })
 
                 {/* Main Image */}
                 <motion.img 
-                    initial={{ scale: 0.9, opacity: 0 }}
+                    key={viewImage} // Re-render animation on image change
+                    initial={{ scale: 0.95, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.9, opacity: 0 }}
+                    exit={{ scale: 0.95, opacity: 0 }}
                     transition={{ type: "spring", stiffness: 300, damping: 30 }}
                     src={viewImage} 
-                    className="max-w-full max-h-[85vh] object-contain shadow-2xl"
+                    className="max-w-full max-h-[85vh] object-contain shadow-2xl z-10"
                     onClick={(e) => e.stopPropagation()} 
                 />
+
+                {/* Navigation Arrows */}
+                {images.length > 1 && (
+                    <>
+                        <button 
+                            onClick={handlePrevImage}
+                            className="absolute left-4 p-3 bg-white/10 rounded-full text-white/70 hover:bg-white/20 hover:text-white transition-all z-50 backdrop-blur-sm"
+                        >
+                            <ChevronLeft size={24} />
+                        </button>
+                        <button 
+                            onClick={handleNextImage}
+                            className="absolute right-4 p-3 bg-white/10 rounded-full text-white/70 hover:bg-white/20 hover:text-white transition-all z-50 backdrop-blur-sm"
+                        >
+                            <ChevronRight size={24} />
+                        </button>
+                        {/* Indicator */}
+                        <div className="absolute top-8 left-1/2 -translate-x-1/2 bg-black/50 text-white text-xs px-3 py-1 rounded-full backdrop-blur-md">
+                            {viewIndex + 1} / {images.length}
+                        </div>
+                    </>
+                )}
 
                 {/* Download Button */}
                 <motion.button
@@ -215,7 +259,7 @@ export const DetailView: React.FC<DetailViewProps> = ({ entry, onBack, onEdit })
                     transition={{ delay: 0.2 }}
                     onClick={(e) => handleDownload(e, viewImage)}
                     whileTap={{ scale: 0.95 }}
-                    className="absolute bottom-10 flex items-center gap-2 px-5 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md rounded-full text-white text-xs font-medium tracking-wider transition-all"
+                    className="absolute bottom-10 flex items-center gap-2 px-5 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md rounded-full text-white text-xs font-medium tracking-wider transition-all z-50"
                 >
                     <Download size={14} />
                     <span>保存原图</span>

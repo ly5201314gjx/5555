@@ -85,21 +85,31 @@ const App: React.FC = () => {
     return (localStorage.getItem('gourmet_layout_mode') as 'grid' | 'list') || 'grid';
   });
 
-  // Entries State
+  // Entries State - Safer Loading
   const [entries, setEntries] = useState<FoodEntry[]>(() => {
     try {
       const saved = localStorage.getItem('gourmet_journal_entries');
-      return saved ? JSON.parse(saved) : INITIAL_ENTRIES;
+      if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+              return parsed;
+          }
+      }
+      return INITIAL_ENTRIES;
     } catch (e) {
+      console.error("Failed to load entries:", e);
       return INITIAL_ENTRIES;
     }
   });
 
-  // Tags State - Single Source of Truth
+  // Tags State - Safer Loading
   const [tags, setTags] = useState<string[]>(() => {
       try {
           const saved = localStorage.getItem('gourmet_tags');
-          if (saved) return JSON.parse(saved);
+          if (saved) {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed)) return parsed;
+          }
           return DEFAULT_TAGS; 
       } catch(e) {
           return DEFAULT_TAGS;
@@ -113,7 +123,12 @@ const App: React.FC = () => {
 
   const handleUpdateEntries = (newEntries: FoodEntry[]) => {
       setEntries(newEntries);
-      localStorage.setItem('gourmet_journal_entries', JSON.stringify(newEntries));
+      try {
+        localStorage.setItem('gourmet_journal_entries', JSON.stringify(newEntries));
+      } catch (e) {
+        console.error("Storage full or error:", e);
+        alert("存储空间不足，可能无法保存所有数据");
+      }
   };
 
   // --- Tag Management Functions ---
@@ -174,19 +189,25 @@ const App: React.FC = () => {
   const getActiveEntry = () => entries.find(e => e.id === selectedEntryId);
 
   const handleSaveEntry = (entry: FoodEntry) => {
+    // Robust saving: Ensure we don't duplicate based on ID
     let updatedEntries;
     if (entries.some(e => e.id === entry.id)) {
         updatedEntries = entries.map(e => e.id === entry.id ? entry : e);
     } else {
         updatedEntries = [entry, ...entries];
     }
-    handleUpdateEntries(updatedEntries);
-    entry.tags.forEach(t => handleAddTag(t));
+    
+    // Safety check before updating state
+    if (updatedEntries.length > 0) {
+        handleUpdateEntries(updatedEntries);
+        // Also ensure tags used in entry exist in global tags
+        entry.tags.forEach(t => handleAddTag(t));
 
-    if (currentView === ViewState.EDIT) {
-        setCurrentView(ViewState.DETAIL);
-    } else {
-        setCurrentView(ViewState.HOME);
+        if (currentView === ViewState.EDIT) {
+            setCurrentView(ViewState.DETAIL);
+        } else {
+            setCurrentView(ViewState.HOME);
+        }
     }
   };
 
