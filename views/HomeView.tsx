@@ -55,7 +55,7 @@ const SortableFoodCardWrapper = ({ id, children, disabled, layoutMode }: any) =>
         transform: CSS.Transform.toString(transform),
         transition,
         zIndex: isDragging ? 50 : 'auto',
-        touchAction: 'none', 
+        touchAction: 'pan-y', // Critical: Allows vertical scrolling on mobile
         position: 'relative' as const,
     };
 
@@ -115,8 +115,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        delay: 150, 
-        tolerance: 5, 
+        delay: 400, // Increased delay to prioritize long-press select over dragging
+        tolerance: 8, 
       },
     }),
     useSensor(KeyboardSensor, {
@@ -248,6 +248,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
       setActiveCategory("全部");
   };
 
+  const isDragDisabled = activeCategory !== "全部" || isSelectionMode;
+
   return (
     <div 
         ref={containerRef}
@@ -378,7 +380,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <SortableContext 
                 items={visibleEntries.map(e => e.id)} 
                 strategy={layoutMode === 'grid' ? rectSortingStrategy : verticalListSortingStrategy}
-                disabled={activeCategory !== "全部"} 
+                disabled={isDragDisabled} 
             >
                 <motion.div 
                     layout 
@@ -389,6 +391,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                             key={entry.id} 
                             id={entry.id} 
                             layoutMode={layoutMode}
+                            disabled={isDragDisabled}
                         >
                             <FoodCard 
                                 entry={entry} 

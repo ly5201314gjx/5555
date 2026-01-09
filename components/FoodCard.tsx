@@ -30,7 +30,7 @@ export const FoodCard: React.FC<FoodCardProps> = memo(({
       if (onLongPress) {
         onLongPress();
       }
-    }, 500);
+    }, 300); // Reduced to 300ms for snappier selection response
   };
 
   const endPress = () => {

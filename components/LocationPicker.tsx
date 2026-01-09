@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Navigation, Search, X, Loader2, Building2 } from 'lucide-react';
+import { MapPin, Navigation, Search, X, Loader2, Building2, Pencil, Map } from 'lucide-react';
 
 interface LocationPickerProps {
   value: string;
@@ -72,7 +72,9 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
             }]);
         } catch (e) {
             console.error("Geocoding failed", e);
-            setSearchTerm(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+            // Even if geocoding fails, we have coords, but for the UI we just show coords
+            const simpleLoc = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+            setSearchTerm(simpleLoc);
         } finally {
             setIsLocating(false);
         }
@@ -81,8 +83,8 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
     const error = (err: GeolocationPositionError) => {
         console.error(err);
         setIsLocating(false);
-        // Fallback: Notify user to manually search if GPS fails (common in China without HTTPS/VPN)
-        alert("定位超时或失败，请尝试直接搜索地点名称。");
+        // Fallback: Notify user to manually search if GPS fails
+        alert("定位超时或失败，请直接输入地点名称。");
     };
 
     // Extended timeout to 15s for domestic networks
@@ -96,7 +98,8 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
   const confirmLocation = (loc: string, lat?: string, lng?: string) => {
       // Clean up the OSM display name for better aesthetics
       let cleanLoc = loc;
-      if (loc.includes(',')) {
+      // Only split if it looks like an address with commas (OSM style)
+      if (loc.includes(',') && !loc.includes('·')) {
           const parts = loc.split(',').map(s => s.trim());
           // Simple heuristic to get the most relevant part (usually the first 2 parts for OSM)
           cleanLoc = parts.slice(0, 2).join(' · ');
@@ -117,7 +120,7 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
             type="text" 
             value={value}
             readOnly
-            placeholder="点击选择地点..." 
+            placeholder="点击选择或输入地点..." 
             className="w-full bg-white/50 backdrop-blur-md border border-stone-200/50 rounded-2xl pl-11 pr-5 py-3 text-sm text-stone-700 placeholder-stone-400 focus:outline-none focus:bg-white/80 focus:border-stone-300 focus:shadow-sm transition-all duration-300 cursor-pointer"
         />
         <MapPin size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 group-hover:text-stone-600 transition-colors" />
@@ -146,7 +149,7 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
                             type="text"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            placeholder="搜索国内地点 (如：上海 外滩)..."
+                            placeholder="自定义地点 或 搜索..."
                             className="w-full bg-stone-100 rounded-full pl-10 pr-10 py-2.5 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-200 transition-all"
                         />
                         <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
@@ -178,7 +181,7 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
                             <div className="absolute inset-0 flex items-center justify-center text-stone-400 bg-stone-100">
                                 <div className="flex flex-col items-center">
                                     <div className="w-16 h-16 bg-stone-200 rounded-full flex items-center justify-center mb-3">
-                                        <MapPin size={32} className="opacity-30" />
+                                        <Map size={32} className="opacity-30" />
                                     </div>
                                     <span className="text-xs tracking-widest uppercase">地图预览</span>
                                 </div>
@@ -191,7 +194,7 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
                             className="absolute bottom-4 right-4 bg-white p-3 rounded-full shadow-lg text-stone-700 hover:text-stone-900 active:scale-95 transition-all z-20 flex items-center gap-2"
                         >
                             {isLocating ? <Loader2 size={20} className="animate-spin" /> : <Navigation size={20} className="fill-current text-blue-500" />}
-                            {isLocating && <span className="text-xs font-medium">定位中...</span>}
+                            {isLocating && <span className="text-xs font-medium">定位</span>}
                         </button>
                     </div>
 
@@ -200,6 +203,26 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
                         <div className="w-12 h-1 bg-stone-200 rounded-full mx-auto mb-6" />
                         
                         <div className="space-y-2 pb-10">
+                             {/* Manual Entry Option - Always show if there is text */}
+                             {searchTerm.trim().length > 0 && (
+                                <button 
+                                    onClick={() => confirmLocation(searchTerm)}
+                                    className="w-full text-left p-4 rounded-2xl bg-amber-50 hover:bg-amber-100 transition-colors flex items-center gap-3 border border-amber-100 shadow-sm mb-4"
+                                >
+                                    <div className="w-10 h-10 flex-shrink-0 rounded-full flex items-center justify-center bg-amber-100 text-amber-600">
+                                        <Pencil size={18} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="text-sm font-bold text-stone-800 line-clamp-1">
+                                            使用 "{searchTerm}"
+                                        </div>
+                                        <div className="text-xs text-amber-600 mt-0.5">
+                                            直接使用当前输入作为地点名称
+                                        </div>
+                                    </div>
+                                </button>
+                             )}
+
                              {/* Results from API */}
                              {searchResults.map((result, i) => (
                                 <button 
@@ -222,10 +245,10 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
                              ))}
 
                              {/* Default Empty State */}
-                             {searchResults.length === 0 && !isSearching && (
+                             {searchResults.length === 0 && searchTerm.length === 0 && !isSearching && (
                                  <div className="text-center py-10 text-stone-300">
-                                     <p className="text-xs tracking-widest mb-2">输入关键字搜索地点</p>
-                                     <p className="text-[10px] text-stone-200">如果自动定位失败，请手动搜索</p>
+                                     <p className="text-xs tracking-widest mb-2">输入关键字搜索或直接输入自定义地点</p>
+                                     <p className="text-[10px] text-stone-200">支持商铺、地标、街道</p>
                                  </div>
                              )}
                         </div>
