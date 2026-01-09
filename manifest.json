@@ -1,0 +1,21 @@
+{
+  "name": "食 · 记",
+  "short_name": "食记",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#FAFAF9",
+  "theme_color": "#FAFAF9",
+  "description": "记录生活中的每一份美味与感动",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3014/3014275.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3014/3014275.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

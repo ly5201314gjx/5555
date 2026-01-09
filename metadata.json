@@ -1,0 +1,8 @@
+{
+  "name": "Gourmet Journal",
+  "description": "A high-end, aesthetic local food diary focusing on visual storytelling, negative space, and natural interactions.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
