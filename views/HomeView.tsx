@@ -334,23 +334,46 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 </AnimatePresence>
             </div>
 
+            {/* Tags/Categories Horizontal Scroll Area */}
             <motion.div 
                 animate={{ height: isSelectionMode ? 0 : 'auto', opacity: isSelectionMode ? 0 : 1 }}
                 className="overflow-hidden"
             >
-                <div className="flex gap-3 overflow-x-auto no-scrollbar py-2 mask-image-gradient pl-1">
-                    <AnimatePresence>
-                        {categories.map((cat) => (
-                        <motion.div key={cat} layout>
-                            <MiniCapsule 
-                                label={cat} 
-                                active={activeCategory === cat} 
-                                onClick={() => setActiveCategory(cat)}
-                                onLongPress={() => handleTagLongPress(cat)}
-                            />
-                        </motion.div>
-                        ))}
-                    </AnimatePresence>
+                {/* 
+                   Fade Mask Logic:
+                   Uses a linear gradient mask to fade the edges, indicating scrollability.
+                */}
+                <div 
+                    className="relative w-full"
+                    style={{
+                        maskImage: 'linear-gradient(to right, transparent 0%, black 5%, black 95%, transparent 100%)',
+                        WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 5%, black 95%, transparent 100%)'
+                    }}
+                >
+                    <div className="flex gap-3 overflow-x-auto no-scrollbar py-2 px-1 items-center flex-nowrap">
+                        <AnimatePresence mode="popLayout">
+                            {categories.map((cat) => (
+                                <motion.div 
+                                    key={cat} 
+                                    layout
+                                    initial={{ opacity: 0, scale: 0.8 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.8 }}
+                                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                                    className="flex-shrink-0" // Critical for preventing compression
+                                >
+                                    <MiniCapsule 
+                                        label={cat} 
+                                        active={activeCategory === cat} 
+                                        onClick={() => setActiveCategory(cat)}
+                                        onLongPress={() => handleTagLongPress(cat)}
+                                    />
+                                </motion.div>
+                            ))}
+                        </AnimatePresence>
+                        {/* Spacer to allow scrolling past the last item comfortably */}
+                        <div className="w-2 flex-shrink-0" />
+                    </div>
                 </div>
             </motion.div>
         </div>

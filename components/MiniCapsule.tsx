@@ -32,14 +32,16 @@ export const MiniCapsule: React.FC<ExtendedMiniCapsuleProps> = ({
     }
   };
 
-  let baseClasses = "px-4 py-1.5 rounded-full text-[11px] font-medium tracking-wide transition-all duration-300 ease-out cursor-pointer select-none flex items-center justify-center touch-none border shadow-sm";
+  // Base classes: Added 'whitespace-nowrap' to enforce horizontal capsule shape
+  // Added 'backdrop-blur-sm' to default/inactive for better layering
+  let baseClasses = "px-4 py-1.5 rounded-full text-[11px] font-medium tracking-wide transition-all duration-300 ease-out cursor-pointer select-none flex items-center justify-center touch-none border shadow-sm whitespace-nowrap";
   
   let variantClasses = "";
   
   if (variant === 'default') {
     variantClasses = active 
       ? "bg-stone-800 border-stone-800 text-white shadow-md scale-105" 
-      : "bg-white border-stone-100 text-stone-500 hover:border-stone-300 hover:text-stone-700 hover:bg-stone-50";
+      : "bg-white/80 border-stone-200 text-stone-500 hover:border-stone-300 hover:text-stone-700 hover:bg-stone-50";
   } else if (variant === 'outline') {
     variantClasses = "bg-transparent border-stone-200 text-stone-400 hover:border-stone-400 hover:text-stone-600";
   } else if (variant === 'blur') {
