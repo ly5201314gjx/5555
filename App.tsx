@@ -62,12 +62,17 @@ const INITIAL_ENTRIES: FoodEntry[] = [
 const DEFAULT_TAGS = ['早餐', '漂亮饭', '大吃特吃', '小吃小喝', '超市'];
 
 const ProfileView = () => (
-  <div className="flex flex-col items-center justify-center h-screen text-stone-400 gap-4">
-    <div className="w-20 h-20 rounded-full bg-stone-200 flex items-center justify-center">
+  <motion.div 
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    exit={{ opacity: 0, y: -20 }}
+    className="flex flex-col items-center justify-center h-screen text-stone-400 gap-4"
+  >
+    <div className="w-20 h-20 rounded-full bg-stone-200 flex items-center justify-center shadow-inner">
         <span className="serif text-2xl text-stone-500">我</span>
     </div>
     <span className="text-xs font-medium tracking-[0.2em] uppercase">个人中心 · 暂未开放</span>
-  </div>
+  </motion.div>
 );
 
 const App: React.FC = () => {
@@ -95,8 +100,6 @@ const App: React.FC = () => {
       try {
           const saved = localStorage.getItem('gourmet_tags');
           if (saved) return JSON.parse(saved);
-          
-          // Fallback: Use only the requested default tags initially
           return DEFAULT_TAGS; 
       } catch(e) {
           return DEFAULT_TAGS;
@@ -131,24 +134,29 @@ const App: React.FC = () => {
       setTags(newTags);
   };
 
-  // Renaming a tag updates the global list AND all entries that use it
   const handleRenameTag = (oldTag: string, newTag: string) => {
     if (!oldTag || !newTag || oldTag === newTag) return;
     
-    // 1. Update Global Tag List (Preserve Order)
+    const trimmedNewTag = newTag.trim();
+
     setTags(prev => {
-        return prev.map(t => t === oldTag ? newTag : t);
+        if (prev.includes(trimmedNewTag)) {
+            return prev.filter(t => t !== oldTag);
+        }
+        return prev.map(t => t === oldTag ? trimmedNewTag : t);
     });
 
-    // 2. Update Entries
     const updatedEntries = entries.map(entry => {
       if (entry.tags.includes(oldTag)) {
-        // Replace oldTag with newTag, avoid duplicates
-        const newEntryTags = entry.tags.map(t => t === oldTag ? newTag : t);
-        return {
-          ...entry,
-          tags: Array.from(new Set(newEntryTags))
-        };
+        const hasNew = entry.tags.includes(trimmedNewTag);
+        let newEntryTags;
+
+        if (hasNew) {
+            newEntryTags = entry.tags.filter(t => t !== oldTag);
+        } else {
+            newEntryTags = entry.tags.map(t => t === oldTag ? trimmedNewTag : t);
+        }
+        return { ...entry, tags: newEntryTags };
       }
       return entry;
     });
@@ -173,8 +181,6 @@ const App: React.FC = () => {
         updatedEntries = [entry, ...entries];
     }
     handleUpdateEntries(updatedEntries);
-    
-    // Ensure any new tags added in the entry are saved to global state
     entry.tags.forEach(t => handleAddTag(t));
 
     if (currentView === ViewState.EDIT) {
@@ -199,10 +205,28 @@ const App: React.FC = () => {
       else setCurrentView(ViewState.HOME);
   };
 
+  // Modern, Native-feel Transitions
   const pageVariants = {
-    initial: { opacity: 0, scale: 0.99 },
-    in: { opacity: 1, scale: 1 },
-    out: { opacity: 0, scale: 1.01 }
+    initial: { 
+        opacity: 0, 
+        scale: 0.96,
+        filter: "blur(4px)"
+    },
+    in: { 
+        opacity: 1, 
+        scale: 1,
+        filter: "blur(0px)"
+    },
+    out: { 
+        opacity: 0, 
+        scale: 1.04, // Slightly zoom in on exit like iOS
+        filter: "blur(2px)"
+    }
+  };
+
+  const pageTransition = {
+      duration: 0.4,
+      ease: [0.19, 1, 0.22, 1] // Exponential Out - Very smooth
   };
 
   const renderView = () => {
@@ -265,18 +289,20 @@ const App: React.FC = () => {
       <div className="fixed bottom-[-10%] left-[-10%] w-[60vw] h-[60vw] bg-warm-gray-100/40 rounded-full blur-[120px] pointer-events-none z-0 mix-blend-multiply" />
 
       <main className="relative z-10 w-full min-h-screen safe-area-bottom">
-        <AnimatePresence initial={false}>
+        <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={currentView}
             initial="initial"
             animate="in"
             exit="out"
             variants={pageVariants}
-            transition={{ duration: 0.25, ease: "easeInOut" }} 
+            transition={pageTransition}
             className="w-full h-full absolute inset-0" 
             style={{ 
               overflowY: currentView === ViewState.HOME ? 'hidden' : 'auto', 
-              height: '100%' 
+              height: '100%',
+              // Perspective gives a slight 3D feel to scale transforms
+              perspective: '1000px'
             }}
           >
             {renderView()}
@@ -290,7 +316,7 @@ const App: React.FC = () => {
                 initial={{ y: 100 }}
                 animate={{ y: 0 }}
                 exit={{ y: 100 }}
-                transition={{ duration: 0.3 }}
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
                 className="fixed bottom-0 left-0 right-0 z-50 pointer-events-none"
             >
                 <BottomNav currentView={currentView} onChange={setCurrentView} />

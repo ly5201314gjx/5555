@@ -1,6 +1,7 @@
 import React from 'react';
 import { Home, Search, Plus, User } from 'lucide-react';
 import { ViewState } from '../types';
+import { motion } from 'framer-motion';
 
 interface BottomNavProps {
   currentView: ViewState;
@@ -24,21 +25,24 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentView, onChange }) =
 
           if (item.isAction) {
              return (
-                <button
+                <motion.button
                     key={item.id}
                     onClick={() => onChange(item.id)}
-                    className="bg-stone-900 text-white p-3 rounded-full shadow-lg hover:bg-stone-800 hover:scale-110 transition-all duration-300 flex items-center justify-center group"
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    className="bg-stone-900 text-white p-3 rounded-full shadow-lg shadow-stone-300 flex items-center justify-center group"
                 >
                     <Icon size={22} strokeWidth={2} className="group-hover:rotate-90 transition-transform duration-300" />
-                </button>
+                </motion.button>
              )
           }
 
           return (
-            <button
+            <motion.button
               key={item.id}
               onClick={() => onChange(item.id)}
               className="relative p-2 flex flex-col items-center justify-center group"
+              whileTap={{ scale: 0.8 }}
             >
               <Icon 
                 size={22} 
@@ -47,11 +51,15 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentView, onChange }) =
                   isActive ? 'text-stone-900' : 'text-stone-400 group-hover:text-stone-600'
                 }`} 
               />
-              {/* Active Indicator Dot */}
-              <span className={`absolute -bottom-1 w-1 h-1 rounded-full bg-stone-900 transition-all duration-300 ${
-                  isActive ? 'opacity-100 scale-100' : 'opacity-0 scale-0'
-              }`} />
-            </button>
+              {/* Active Indicator Dot - Animated */}
+              {isActive && (
+                <motion.span 
+                    layoutId="nav-indicator"
+                    className="absolute -bottom-1 w-1 h-1 rounded-full bg-stone-900"
+                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                />
+              )}
+            </motion.button>
           );
         })}
       </div>

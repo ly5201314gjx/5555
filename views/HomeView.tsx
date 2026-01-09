@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FoodCard } from '../components/FoodCard';
 import { MiniCapsule } from '../components/MiniCapsule';
 import { FoodEntry } from '../types';
-import { Trash2, X, LayoutGrid, LayoutList, Tag, FolderInput, ArrowRightLeft, AlertTriangle, CheckCircle2, Edit2, Check, GripVertical, Settings2 } from 'lucide-react';
+import { Trash2, X, LayoutGrid, LayoutList, Tag, FolderInput, ArrowRightLeft, AlertTriangle, CheckCircle2, Edit2, Check, GripVertical, ArrowDownUp } from 'lucide-react';
 
 // dnd-kit imports
 import {
@@ -81,8 +81,8 @@ const SortableFoodCardWrapper = ({ id, children, disabled }: any) => {
     );
 };
 
-// Sortable Item for Tag Manager Modal
-const SortableTagItem = ({ id, tag, onDelete, onRename }: any) => {
+// Simplified Sortable Item for Sort Modal (Just Drag Handle + Text)
+const SortableTagItemSimple = ({ id, tag }: any) => {
     const {
         attributes,
         listeners,
@@ -96,57 +96,17 @@ const SortableTagItem = ({ id, tag, onDelete, onRename }: any) => {
         transform: CSS.Transform.toString(transform),
         transition,
         zIndex: isDragging ? 60 : 'auto',
-        touchAction: 'none', // Important for drag
+        touchAction: 'none',
         position: 'relative' as const,
     };
 
-    const [isEditing, setIsEditing] = useState(false);
-    const [editValue, setEditValue] = useState(tag);
-
-    const handleSave = () => {
-        if (editValue.trim() && editValue !== tag) {
-            onRename(tag, editValue.trim());
-        }
-        setIsEditing(false);
-    };
-
     return (
-        <div ref={setNodeRef} style={style} className="flex items-center gap-3 bg-stone-50 p-3 rounded-xl mb-2">
-            {/* Drag Handle */}
+        <div ref={setNodeRef} style={style} className="flex items-center gap-3 bg-stone-50 p-3 rounded-xl mb-2 touch-none">
+            {/* Drag Handle - Full item draggable for ease or specific handle */}
             <div {...attributes} {...listeners} className="text-stone-300 cursor-grab active:cursor-grabbing p-1">
                 <GripVertical size={16} />
             </div>
-
-            {/* Content */}
-            <div className="flex-1">
-                {isEditing ? (
-                    <div className="flex items-center gap-2">
-                        <input 
-                            autoFocus
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            className="bg-white border border-stone-200 rounded-lg px-2 py-1 text-sm w-full focus:outline-none focus:ring-1 focus:ring-stone-400"
-                        />
-                        <button onClick={handleSave} className="p-1.5 bg-stone-800 text-white rounded-lg">
-                            <Check size={14} />
-                        </button>
-                    </div>
-                ) : (
-                    <span className="text-sm font-medium text-stone-700">{tag}</span>
-                )}
-            </div>
-
-            {/* Actions */}
-            {!isEditing && (
-                <div className="flex items-center gap-1">
-                    <button onClick={() => { setEditValue(tag); setIsEditing(true); }} className="p-2 text-stone-400 hover:text-stone-600 hover:bg-stone-200 rounded-lg">
-                        <Edit2 size={14} />
-                    </button>
-                    <button onClick={() => onDelete(tag)} className="p-2 text-stone-400 hover:text-red-500 hover:bg-red-50 rounded-lg">
-                        <Trash2 size={14} />
-                    </button>
-                </div>
-            )}
+            <span className="text-sm font-medium text-stone-700">{tag}</span>
         </div>
     );
 };
@@ -172,13 +132,16 @@ export const HomeView: React.FC<HomeViewProps> = ({
   // Modals & States
   const [deleteConfirmType, setDeleteConfirmType] = useState<'cards' | 'tag_only' | 'tag_all' | null>(null);
   
-  // Tag Manager Modal State
-  const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
-  const [tagToDelete, setTagToDelete] = useState<string | null>(null); // For sub-confirmation in manager
+  // Tag Context Menu (Restored from Turn 2)
+  const [manageTag, setManageTag] = useState<string | null>(null);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
 
-  // Move Modal State
+  // Sort Modal State
+  const [isSortModalOpen, setIsSortModalOpen] = useState(false);
+
+  // Move Modal State (For selected cards)
   const [showMoveModal, setShowMoveModal] = useState(false);
-  const [manageTag, setManageTag] = useState<string | null>(null); // Used only for "Move to" logic now
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -192,22 +155,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
       onScrollSave(e.currentTarget.scrollTop);
   };
 
-  // Sensors for Main Card Sort
+  // Sensors
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        delay: 400, 
-        tolerance: 8, 
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
+    useSensor(PointerSensor, { activationConstraint: { delay: 400, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  // Sensors for Tag Manager (Immediate drag on handle)
-  const tagManagerSensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), // Low distance for immediate handle response
+  const sortSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 100, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
@@ -222,7 +177,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         : entries.filter(e => e.tags.includes(activeCategory));
   }, [entries, activeCategory]);
 
-  // Card Drag Handlers
+  // Handlers
   const handleDragStart = (event: DragStartEvent) => {
       setActiveDragId(event.active.id as string);
       if (navigator.vibrate) navigator.vibrate(20);
@@ -231,7 +186,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const handleDragEnd = (event: DragEndEvent) => {
       setActiveDragId(null);
       const { active, over } = event;
-      
       if (active.id !== over?.id && activeCategory === "全部") {
         const oldIndex = entries.findIndex((item) => item.id === active.id);
         const newIndex = entries.findIndex((item) => item.id === over?.id);
@@ -241,7 +195,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
       }
   };
 
-  // Tag Drag Handlers
   const handleTagDragEnd = (event: DragEndEvent) => {
       const { active, over } = event;
       if (over && active.id !== over.id) {
@@ -279,72 +232,80 @@ export const HomeView: React.FC<HomeViewProps> = ({
       }
   };
 
-  // --- Actions ---
+  // --- Tag Logic ---
+  const handleTagLongPress = (tag: string) => {
+      if (tag === "全部") return;
+      if (navigator.vibrate) navigator.vibrate(50);
+      setManageTag(tag);
+      setIsRenaming(false);
+      setRenameValue(tag);
+  };
+
+  const closeManageModal = () => {
+      setManageTag(null);
+      setIsRenaming(false);
+  };
+
+  const executeRename = () => {
+      if (manageTag && renameValue.trim() && renameValue !== manageTag) {
+          onRenameTag(manageTag, renameValue.trim());
+          if (activeCategory === manageTag) {
+              setActiveCategory(renameValue.trim());
+          }
+      }
+      closeManageModal();
+  };
+
+  // Delete Actions from Manage Modal
+  const requestDeleteTag = (type: 'tag_only' | 'tag_all') => {
+      setDeleteConfirmType(type);
+  };
+
+  // Execution of Delete
+  const executeDeleteConfirm = () => {
+      if (!manageTag) return;
+      
+      if (deleteConfirmType === 'tag_only') {
+           const updated = entries.map(e => ({
+              ...e,
+              tags: e.tags.filter(t => t !== manageTag)
+           }));
+           onEntriesUpdate(updated);
+           onDeleteTag(manageTag);
+      } else if (deleteConfirmType === 'tag_all') {
+           const updated = entries.filter(e => !e.tags.includes(manageTag));
+           onEntriesUpdate(updated);
+           onDeleteTag(manageTag);
+      }
+
+      if (activeCategory === manageTag) setActiveCategory("全部");
+      
+      setDeleteConfirmType(null);
+      closeManageModal();
+  };
+
   const executeDeleteCards = () => {
       const remaining = entries.filter(e => !selectedIds.includes(e.id));
       onEntriesUpdate(remaining);
-      resetSelection();
+      setIsSelectionMode(false);
+      setSelectedIds([]);
+      setDeleteConfirmType(null);
   };
 
+  // Move Logic
   const executeMoveCards = (targetTag: string) => {
-      let idsToMove = selectedIds;
-      // If moving from manageTag (e.g. from tag manager delete options), handle logic...
-      // But we simplified. Now Move is only for selected cards.
-      
       const updated = entries.map(e => {
-          if (idsToMove.includes(e.id)) {
+          if (selectedIds.includes(e.id)) {
               let newTags = [...e.tags];
               if (!newTags.includes(targetTag)) newTags.push(targetTag);
               return { ...e, tags: newTags };
           }
           return e;
       });
-
       onEntriesUpdate(updated);
-      resetSelection();
-      setShowMoveModal(false);
-  };
-
-  const resetSelection = () => {
       setIsSelectionMode(false);
       setSelectedIds([]);
-      setDeleteConfirmType(null);
-  };
-
-  // Opens the comprehensive Tag Manager
-  const handleTagLongPress = (tag: string) => {
-      if (tag === "全部") return;
-      if (navigator.vibrate) navigator.vibrate(50);
-      setIsTagManagerOpen(true);
-  };
-
-  const handleRenameInManager = (oldTag: string, newTag: string) => {
-      onRenameTag(oldTag, newTag);
-      // If we renamed the active category, update it
-      if (activeCategory === oldTag) setActiveCategory(newTag);
-  };
-
-  const handleDeleteInManager = (tag: string) => {
-      setTagToDelete(tag);
-  };
-
-  const confirmDeleteTag = (type: 'tag_only' | 'tag_all') => {
-      if (!tagToDelete) return;
-      if (type === 'tag_only') {
-           const updated = entries.map(e => ({
-              ...e,
-              tags: e.tags.filter(t => t !== tagToDelete)
-           }));
-           onEntriesUpdate(updated);
-           onDeleteTag(tagToDelete);
-      } else {
-           const updated = entries.filter(e => !e.tags.includes(tagToDelete));
-           onEntriesUpdate(updated);
-           onDeleteTag(tagToDelete);
-      }
-      
-      if (activeCategory === tagToDelete) setActiveCategory("全部");
-      setTagToDelete(null);
+      setShowMoveModal(false);
   };
 
   const isDragDisabled = activeCategory !== "全部" || isSelectionMode;
@@ -395,8 +356,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     >
                         <h1 className="serif text-xl font-medium text-stone-800 tracking-wide pl-1">食 · 记</h1>
                         <div className="flex items-center gap-2">
-                             <button onClick={() => setIsTagManagerOpen(true)} className="w-9 h-9 flex items-center justify-center rounded-full text-stone-400 hover:bg-stone-100 transition-colors">
-                                <Settings2 size={18} />
+                             <button onClick={() => setIsSortModalOpen(true)} className="w-9 h-9 flex items-center justify-center rounded-full text-stone-400 hover:bg-stone-100 transition-colors">
+                                <ArrowDownUp size={16} />
                              </button>
                             <button onClick={toggleSelectionMode} className="w-9 h-9 flex items-center justify-center rounded-full text-stone-400 hover:bg-stone-100 transition-colors">
                                 <CheckCircle2 size={18} />
@@ -410,8 +371,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </AnimatePresence>
         </div>
 
-        {/* Category Bar */}
-        <div className="sticky top-4 z-40 mb-6">
+        {/* Category Bar with Sliding Module Visualization & Visible Scrollbar */}
+        <div className="sticky top-4 z-40 mb-6 px-1">
             <AnimatePresence>
                 {!isSelectionMode && (
                     <motion.div 
@@ -420,25 +381,26 @@ export const HomeView: React.FC<HomeViewProps> = ({
                         exit={{ opacity: 0, y: -20, height: 0 }}
                         className="w-full"
                     >
-                        <div className="bg-white/70 backdrop-blur-xl border border-white/40 shadow-xl shadow-stone-200/40 rounded-full py-1.5 px-2 relative flex">
-                             <div className="flex-1 overflow-x-auto no-scrollbar relative w-full touch-pan-x overscroll-contain">
-                                <div className="flex gap-1.5 px-1 items-center w-max min-w-full">
+                        <div className="bg-white/80 backdrop-blur-xl border border-white/50 shadow-xl shadow-stone-200/40 rounded-[24px] p-2 pb-1 relative flex flex-col">
+                             {/* Scroll Container with Snap & Custom Styled Scrollbar */}
+                             {/* The arbitrary classes customize the webkit scrollbar to act as the "sliding horizontal bar" */}
+                             <div className="w-full overflow-x-auto touch-pan-x overscroll-contain snap-x snap-mandatory pb-2 [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-track]:mx-4 [&::-webkit-scrollbar-thumb]:bg-stone-300/80 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-stone-400">
+                                <div className="flex gap-3 px-2 items-center w-max min-w-full">
                                     {categories.map((cat) => (
-                                        <motion.div key={cat} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-shrink-0">
+                                        <motion.div key={cat} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-shrink-0 snap-start">
                                             <MiniCapsule 
                                                 label={cat} 
                                                 active={activeCategory === cat} 
                                                 onClick={() => setActiveCategory(cat)}
                                                 onLongPress={() => handleTagLongPress(cat)}
-                                                className={`!py-1.5 !px-4 !text-[10px] ${activeCategory === cat ? '!shadow-none !bg-stone-800 !text-white' : '!bg-transparent !border-transparent !text-stone-500 hover:!bg-stone-100/50'}`}
+                                                // Enhanced Visuals for "Module" feel - blocky and distinct
+                                                className={`!py-2.5 !px-6 !text-xs shadow-sm transition-all duration-300 ${activeCategory === cat ? '!shadow-md !bg-stone-800 !text-white scale-100 ring-2 ring-stone-800 ring-offset-1' : '!bg-white !border-stone-100 !text-stone-500 hover:!bg-stone-50 hover:scale-[1.02]'}`}
                                             />
                                         </motion.div>
                                     ))}
-                                    <div className="w-4 flex-shrink-0" />
+                                    <div className="w-2 flex-shrink-0" />
                                 </div>
                              </div>
-                             <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-white/80 to-transparent pointer-events-none rounded-l-full z-10" />
-                             <div className="absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-white/80 to-transparent pointer-events-none rounded-r-full z-10" />
                         </div>
                     </motion.div>
                 )}
@@ -472,80 +434,93 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </div>
         )}
 
-        {/* --- TAG MANAGER MODAL --- */}
+        {/* --- 1. Tag Context Menu --- */}
         <AnimatePresence>
-            {isTagManagerOpen && (
+            {manageTag && !deleteConfirmType && (
                 <motion.div 
                     initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                    className="fixed inset-0 z-[100] flex flex-col justify-end bg-black/20 backdrop-blur-sm"
-                    onClick={() => setIsTagManagerOpen(false)}
+                    className="fixed inset-0 z-[60] flex items-center justify-center bg-black/10 backdrop-blur-[2px]"
+                    onClick={closeManageModal}
                 >
                     <motion.div 
-                        initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
-                        transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                        className="bg-white rounded-t-[2rem] h-[80vh] w-full shadow-2xl overflow-hidden flex flex-col"
+                        initial={{ scale: 0.9, y: 10 }} 
+                        animate={{ scale: 1, y: 0 }} 
+                        exit={{ scale: 0.9, opacity: 0 }}
+                        onClick={e => e.stopPropagation()}
+                        className="bg-white/90 backdrop-blur-xl rounded-full p-2 pr-4 shadow-2xl flex items-center gap-4 border border-white/50"
+                    >
+                         {isRenaming ? (
+                             <div className="flex items-center gap-2 pl-2">
+                                 <input 
+                                    autoFocus
+                                    type="text" 
+                                    value={renameValue}
+                                    onChange={(e) => setRenameValue(e.target.value)}
+                                    className="bg-stone-100 rounded-full px-3 py-1.5 text-sm text-stone-800 focus:outline-none w-32"
+                                    placeholder="新标签名"
+                                 />
+                                 <button onClick={executeRename} className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-800 text-white hover:scale-105 transition-all"><Check size={16} /></button>
+                                 <button onClick={() => setIsRenaming(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-100 text-stone-500 hover:bg-stone-200 transition-all"><X size={16} /></button>
+                             </div>
+                         ) : (
+                             <>
+                                <div className="flex items-center gap-2 pl-4 pr-3 border-r border-stone-200">
+                                    <Tag size={14} className="text-stone-400" />
+                                    <span className="text-sm font-semibold text-stone-700 tracking-wide">{manageTag}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={() => setIsRenaming(true)} className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-100 text-stone-600 hover:bg-stone-800 hover:text-white transition-all"><Edit2 size={14} /></button>
+                                    <button onClick={() => requestDeleteTag('tag_only')} className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-100 text-stone-600 hover:bg-amber-100 hover:text-amber-600 transition-all"><X size={16} /></button>
+                                    <button onClick={() => requestDeleteTag('tag_all')} className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-100 text-stone-600 hover:bg-red-100 hover:text-red-500 transition-all"><Trash2 size={16} /></button>
+                                </div>
+                             </>
+                         )}
+                    </motion.div>
+                </motion.div>
+            )}
+        </AnimatePresence>
+
+        {/* --- 2. Exquisite Sort Modal --- */}
+        <AnimatePresence>
+            {isSortModalOpen && (
+                <motion.div 
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/20 backdrop-blur-sm"
+                    onClick={() => setIsSortModalOpen(false)}
+                >
+                    <motion.div 
+                        initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+                        className="bg-white rounded-3xl w-64 shadow-2xl overflow-hidden flex flex-col max-h-[60vh]"
                         onClick={e => e.stopPropagation()}
                     >
-                        <div className="flex items-center justify-between p-6 border-b border-stone-100">
-                            <h2 className="text-lg font-bold text-stone-800">标签管理</h2>
-                            <button onClick={() => setIsTagManagerOpen(false)} className="p-2 -mr-2 text-stone-400 hover:text-stone-800 rounded-full bg-stone-50"><X size={20} /></button>
+                        <div className="flex items-center justify-between p-4 border-b border-stone-50 bg-stone-50/50">
+                            <h2 className="text-xs font-bold text-stone-400 uppercase tracking-widest">标签排序</h2>
+                            <button onClick={() => setIsSortModalOpen(false)} className="text-stone-400 hover:text-stone-800"><X size={16} /></button>
                         </div>
-
-                        {/* Scrolling Module */}
-                        <div className="flex-1 overflow-y-auto p-6">
-                            <DndContext sensors={tagManagerSensors} collisionDetection={closestCenter} onDragEnd={handleTagDragEnd}>
+                        <div className="flex-1 overflow-y-auto p-4">
+                            <DndContext sensors={sortSensors} collisionDetection={closestCenter} onDragEnd={handleTagDragEnd}>
                                 <SortableContext items={tags} strategy={verticalListSortingStrategy}>
                                     {tags.map((tag) => (
-                                        <SortableTagItem 
-                                            key={tag} 
-                                            id={tag} 
-                                            tag={tag}
-                                            onRename={handleRenameInManager}
-                                            onDelete={handleDeleteInManager}
-                                        />
+                                        <SortableTagItemSimple key={tag} id={tag} tag={tag} />
                                     ))}
                                 </SortableContext>
                             </DndContext>
                         </div>
-                        
-                        <div className="p-6 bg-stone-50 text-center text-xs text-stone-400">
-                            长按左侧图标排序 · 点击笔形图标修改
-                        </div>
                     </motion.div>
                 </motion.div>
             )}
         </AnimatePresence>
 
-        {/* --- Sub-Confirm for Tag Deletion inside Manager --- */}
+        {/* --- 3. Confirmation Dialogs --- */}
         <AnimatePresence>
-            {tagToDelete && (
+            {deleteConfirmType && (
                 <motion.div 
                     initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                     className="fixed inset-0 z-[110] flex items-center justify-center bg-black/30 backdrop-blur-sm p-8"
-                >
-                     <motion.div 
-                        initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
-                        className="bg-white rounded-2xl p-6 shadow-2xl w-full max-w-xs flex flex-col items-center text-center"
-                    >
-                        <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center mb-3 text-red-500"><AlertTriangle size={24} /></div>
-                        <h3 className="text-sm font-bold text-stone-800 mb-4">删除标签 "{tagToDelete}"?</h3>
-                        <div className="flex flex-col gap-2 w-full">
-                            <button onClick={() => confirmDeleteTag('tag_only')} className="py-2.5 text-xs font-medium text-stone-700 bg-stone-100 rounded-lg">仅删除标签 (保留记录)</button>
-                            <button onClick={() => confirmDeleteTag('tag_all')} className="py-2.5 text-xs font-medium text-white bg-red-500 rounded-lg">删除标签及关联记录</button>
-                            <button onClick={() => setTagToDelete(null)} className="py-2.5 text-xs text-stone-400 mt-2">取消</button>
-                        </div>
-                    </motion.div>
-                </motion.div>
-            )}
-        </AnimatePresence>
-
-        {/* --- Delete Confirmation for Cards --- */}
-        <AnimatePresence>
-            {deleteConfirmType === 'cards' && (
-                <motion.div 
-                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                    className="fixed inset-0 z-[70] flex items-center justify-center bg-black/20 backdrop-blur-sm p-8"
-                    onClick={() => setDeleteConfirmType(null)}
+                    onClick={() => {
+                        setDeleteConfirmType(null);
+                        setManageTag(null);
+                    }}
                 >
                      <motion.div 
                         initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
@@ -553,18 +528,32 @@ export const HomeView: React.FC<HomeViewProps> = ({
                         className="bg-white rounded-2xl p-6 shadow-2xl w-full max-w-xs flex flex-col items-center text-center"
                     >
                         <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center mb-3 text-red-500"><AlertTriangle size={24} /></div>
-                        <h3 className="text-sm font-bold text-stone-800 mb-1">确认删除?</h3>
-                        <p className="text-xs text-stone-500 mb-5 leading-relaxed">删除选中的记录？此操作无法撤销。</p>
-                        <div className="flex gap-3 w-full">
-                            <button onClick={() => setDeleteConfirmType(null)} className="flex-1 py-2 text-xs font-medium text-stone-500 bg-stone-100 rounded-lg">取消</button>
-                            <button onClick={executeDeleteCards} className="flex-1 py-2 text-xs font-medium text-white bg-red-500 rounded-lg hover:bg-red-600">确认删除</button>
-                        </div>
+                        
+                        {deleteConfirmType === 'cards' ? (
+                             <>
+                                <h3 className="text-sm font-bold text-stone-800 mb-1">确认删除?</h3>
+                                <p className="text-xs text-stone-500 mb-5 leading-relaxed">删除选中的记录？此操作无法撤销。</p>
+                                <div className="flex gap-3 w-full">
+                                    <button onClick={() => setDeleteConfirmType(null)} className="flex-1 py-2 text-xs font-medium text-stone-500 bg-stone-100 rounded-lg">取消</button>
+                                    <button onClick={executeDeleteCards} className="flex-1 py-2 text-xs font-medium text-white bg-red-500 rounded-lg hover:bg-red-600">确认删除</button>
+                                </div>
+                             </>
+                        ) : (
+                             <>
+                                <h3 className="text-sm font-bold text-stone-800 mb-4">删除标签 "{manageTag}"?</h3>
+                                <div className="flex flex-col gap-2 w-full">
+                                    {deleteConfirmType === 'tag_only' && <button onClick={executeDeleteConfirm} className="py-2.5 text-xs font-medium text-white bg-red-500 rounded-lg">确认删除标签 (保留记录)</button>}
+                                    {deleteConfirmType === 'tag_all' && <button onClick={executeDeleteConfirm} className="py-2.5 text-xs font-medium text-white bg-red-500 rounded-lg">确认删除标签及关联记录</button>}
+                                    <button onClick={() => { setDeleteConfirmType(null); setManageTag(null); }} className="py-2.5 text-xs text-stone-400 mt-2">取消</button>
+                                </div>
+                             </>
+                        )}
                     </motion.div>
                 </motion.div>
             )}
         </AnimatePresence>
 
-        {/* --- Move Modal --- */}
+        {/* --- 4. Move Modal --- */}
         <AnimatePresence>
             {showMoveModal && (
                 <motion.div 

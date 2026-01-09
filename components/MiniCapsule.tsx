@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { MiniCapsuleProps } from '../types';
+import { motion } from 'framer-motion';
 
 interface ExtendedMiniCapsuleProps extends MiniCapsuleProps {
   onLongPress?: () => void;
@@ -51,14 +52,15 @@ export const MiniCapsule: React.FC<ExtendedMiniCapsuleProps> = ({
   }
 
   return (
-    <div 
+    <motion.div 
       onClick={onClick}
       onPointerDown={startPress}
       onPointerUp={endPress}
       onPointerLeave={endPress}
       className={`${baseClasses} ${variantClasses} ${className}`}
+      whileTap={{ scale: 0.92 }}
     >
       {label}
-    </div>
+    </motion.div>
   );
 };

@@ -41,32 +41,43 @@ export const DetailView: React.FC<DetailViewProps> = ({ entry, onBack, onEdit })
   return (
     <>
     <motion.div 
-        initial={{ opacity: 0 }} 
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
         className="h-full bg-[#FAFAF9] overflow-y-auto no-scrollbar relative"
+        initial="initial"
+        animate="animate"
+        exit="exit"
     >
       {/* Top Navigation Overlay */}
       <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-center z-20 pt-safe-top">
-          <button 
+          <motion.button 
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.2 }}
             onClick={onBack}
             className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-stone-800 hover:bg-white/50 transition-colors border border-white/20"
+            whileTap={{ scale: 0.9 }}
           >
               <ArrowLeft size={18} />
-          </button>
+          </motion.button>
 
-          <button 
+          <motion.button 
+            initial={{ opacity: 0, x: 10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.2 }}
             onClick={onEdit}
             className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-stone-800 hover:bg-white/50 transition-colors border border-white/20"
+            whileTap={{ scale: 0.9 }}
           >
               <Edit3 size={16} />
-          </button>
+          </motion.button>
       </div>
 
-      {/* Hero Image (Cover) - Clickable */}
-      <div 
+      {/* Hero Image (Cover) */}
+      <motion.div 
         className="relative w-full h-[55vh] cursor-zoom-in group"
         onClick={() => setViewImage(coverImage)}
+        initial={{ scale: 1.1, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 0.6, ease: [0.33, 1, 0.68, 1] }} // Slow ease-out
       >
           <img 
             src={coverImage} 
@@ -80,10 +91,15 @@ export const DetailView: React.FC<DetailViewProps> = ({ entry, onBack, onEdit })
                   <Maximize2 size={16} />
               </div>
           </div>
-      </div>
+      </motion.div>
 
       {/* Content Body - Floating Sheet */}
-      <div className="relative -mt-12 px-5 pb-20">
+      <motion.div 
+        className="relative -mt-12 px-5 pb-20"
+        initial={{ y: 60, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.1, type: "spring", stiffness: 200, damping: 20 }}
+      >
           <div className="bg-white/80 backdrop-blur-2xl border border-white/60 rounded-[2rem] p-6 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.05)]">
             
             {/* Header: Title & Rating */}
@@ -142,13 +158,14 @@ export const DetailView: React.FC<DetailViewProps> = ({ entry, onBack, onEdit })
                     <h3 className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-3 pl-1">图集</h3>
                     <div className="grid grid-cols-4 gap-2">
                         {otherImages.map((img, idx) => (
-                            <div 
+                            <motion.div 
                                 key={idx} 
                                 className="rounded-xl overflow-hidden aspect-square cursor-pointer shadow-sm hover:opacity-90 transition-opacity"
                                 onClick={() => setViewImage(img)}
+                                whileTap={{ scale: 0.95 }}
                             >
                                 <img src={img} className="w-full h-full object-cover" loading="lazy" />
-                            </div>
+                            </motion.div>
                         ))}
                     </div>
                 </div>
@@ -159,7 +176,7 @@ export const DetailView: React.FC<DetailViewProps> = ({ entry, onBack, onEdit })
           <div className="mt-8 flex justify-center opacity-20">
               <div className="w-12 h-1 rounded-full bg-stone-400" />
           </div>
-      </div>
+      </motion.div>
     </motion.div>
 
     {/* Full Screen Lightbox Overlay */}
@@ -185,6 +202,7 @@ export const DetailView: React.FC<DetailViewProps> = ({ entry, onBack, onEdit })
                     initial={{ scale: 0.9, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.9, opacity: 0 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
                     src={viewImage} 
                     className="max-w-full max-h-[85vh] object-contain shadow-2xl"
                     onClick={(e) => e.stopPropagation()} 
@@ -196,6 +214,7 @@ export const DetailView: React.FC<DetailViewProps> = ({ entry, onBack, onEdit })
                     animate={{ y: 0, opacity: 1 }}
                     transition={{ delay: 0.2 }}
                     onClick={(e) => handleDownload(e, viewImage)}
+                    whileTap={{ scale: 0.95 }}
                     className="absolute bottom-10 flex items-center gap-2 px-5 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md rounded-full text-white text-xs font-medium tracking-wider transition-all"
                 >
                     <Download size={14} />

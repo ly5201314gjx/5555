@@ -47,10 +47,16 @@ export const FoodCard: React.FC<FoodCardProps> = memo(({
 
   const hasMultipleImages = entry.images && entry.images.length > 1;
 
+  // Animation config for tap
+  const tapAnimation = { 
+      scale: 0.95,
+      transition: { type: "spring", stiffness: 400, damping: 17 }
+  };
+
   // Grid Layout
   if (layoutMode === 'grid') {
     return (
-      <div
+      <motion.div
         className="w-full mb-1 group break-inside-avoid cursor-pointer select-none relative h-full"
         onPointerDown={startPress}
         onPointerUp={endPress}
@@ -58,6 +64,7 @@ export const FoodCard: React.FC<FoodCardProps> = memo(({
         onPointerCancel={endPress}
         onClick={onClick}
         onContextMenu={(e) => e.preventDefault()}
+        whileTap={isSelectionMode ? undefined : tapAnimation}
       >
         <div className="relative h-full flex flex-col">
             {isSelectionMode && (
@@ -109,13 +116,13 @@ export const FoodCard: React.FC<FoodCardProps> = memo(({
                 </div>
             </div>
         </div>
-      </div>
+      </motion.div>
     );
   }
 
   // List Layout
   return (
-    <div
+    <motion.div
       className={`w-full mb-1 group cursor-pointer select-none relative flex gap-4 p-2.5 bg-white rounded-3xl shadow-sm border border-stone-100 items-center ${isSelected ? 'ring-1 ring-stone-800' : ''}`}
       onPointerDown={startPress}
       onPointerUp={endPress}
@@ -123,6 +130,7 @@ export const FoodCard: React.FC<FoodCardProps> = memo(({
       onPointerCancel={endPress}
       onClick={onClick}
       onContextMenu={(e) => e.preventDefault()}
+      whileTap={isSelectionMode ? undefined : tapAnimation}
     >
         {isSelectionMode && (
            <div className={`absolute -top-1 -right-1 z-20 w-6 h-6 rounded-full flex items-center justify-center transition-all duration-300 border shadow-sm ${isSelected ? 'bg-stone-800 border-stone-800' : 'bg-white border-stone-200'}`}>
@@ -173,6 +181,6 @@ export const FoodCard: React.FC<FoodCardProps> = memo(({
                 </div>
             </div>
         </div>
-    </div>
+    </motion.div>
   );
 });

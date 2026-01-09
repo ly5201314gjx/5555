@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Sun, Cloud, CloudRain, CloudSnow, CloudLightning, Wind, Loader2, Thermometer, ChevronDown, MapPin } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Sun, Cloud, CloudRain, CloudSnow, CloudLightning, Wind, Loader2, Thermometer, ChevronDown, MapPin, RefreshCcw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { WeatherInfo } from '../types';
 
@@ -17,11 +17,31 @@ const WEATHER_TYPES = [
   { code: 3, label: '阴天', icon: Wind, color: 'text-stone-400' },
 ];
 
+const CACHE_KEY = 'gourmet_weather_cache';
+const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
+
 export const WeatherWidget: React.FC<WeatherWidgetProps> = ({ value, onChange }) => {
   const [loading, setLoading] = useState(false);
   const [showSelector, setShowSelector] = useState(false);
 
-  const fetchWeather = () => {
+  // Auto-load cache on mount if no value is present
+  useEffect(() => {
+    if (!value) {
+        try {
+            const cached = localStorage.getItem(CACHE_KEY);
+            if (cached) {
+                const { timestamp, data } = JSON.parse(cached);
+                if (Date.now() - timestamp < CACHE_DURATION) {
+                    onChange(data);
+                }
+            }
+        } catch (e) {
+            console.warn("Weather cache read failed", e);
+        }
+    }
+  }, []);
+
+  const fetchWeather = (forceRefresh = false) => {
     setLoading(true);
     if (!navigator.geolocation) {
       alert("您的设备不支持定位");
@@ -29,51 +49,83 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({ value, onChange })
       return;
     }
 
+    // Check cache first if not forcing
+    if (!forceRefresh) {
+        try {
+            const cached = localStorage.getItem(CACHE_KEY);
+            if (cached) {
+                const { timestamp, data } = JSON.parse(cached);
+                if (Date.now() - timestamp < CACHE_DURATION) {
+                    onChange(data);
+                    setLoading(false);
+                    return;
+                }
+            }
+        } catch (e) {
+            // ignore
+        }
+    }
+
     const success = async (position: GeolocationPosition) => {
         try {
           const { latitude, longitude } = position.coords;
           
-          // 1. Get Location Name using pure browser Geolocation reverse lookup (via Nominatim for detailed Chinese name)
-          // This is a free, open source way to get location names in China without keys.
+          // 1. Get Location Name (Optimized for Chinese Addresses)
           let locationName = '本地';
           try {
-             // Use Nominatim (OSM) for reverse geocoding with strict Chinese language preference
+             // Use Nominatim (OSM) for reverse geocoding
              const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=12&addressdetails=1&accept-language=zh-CN`);
              const geoData = await geoRes.json();
              
-             // Smart name extraction for China: District -> City -> Province
              const addr = geoData.address;
-             locationName = addr.district || addr.county || addr.city || addr.town || addr.village || addr.state || '未知';
+             // Priority: District (Qu) -> Suburb -> County -> City (Shi) -> Town
+             // This logic ensures we get "Chaoyang District" instead of just "Beijing" if possible
+             const region = addr.district || addr.suburb || addr.county;
+             const city = addr.city || addr.state;
+             
+             if (region) {
+                 locationName = region;
+             } else if (city) {
+                 locationName = city;
+             } else {
+                 locationName = addr.town || addr.village || '未知地区';
+             }
           } catch(e) {
-              console.warn("Location name fetch failed, defaulting to '本地'");
+              console.warn("Location fetch failed, using fallback");
           }
 
-          // 2. Get Weather using Open-Meteo
-          // Open-Meteo works well globally including China, requires no API key, and is very fast.
+          // 2. Get Weather (Open-Meteo)
           const res = await fetch(
             `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true&timezone=auto`
           );
           const data = await res.json();
           const { temperature, weathercode } = data.current_weather;
           
-          // Map WMO codes to our simplified types
           let mappedCode = 0;
-          if (weathercode === 0) mappedCode = 0; // Clear
-          else if (weathercode >= 1 && weathercode <= 3) mappedCode = 1; // Cloudy
-          else if (weathercode >= 45 && weathercode <= 48) mappedCode = 3; // Fog/Overcast
-          else if (weathercode >= 51 && weathercode <= 67) mappedCode = 61; // Rain
-          else if (weathercode >= 71 && weathercode <= 86) mappedCode = 71; // Snow
-          else if (weathercode >= 95) mappedCode = 95; // Thunderstorm
+          if (weathercode === 0) mappedCode = 0;
+          else if (weathercode >= 1 && weathercode <= 3) mappedCode = 1;
+          else if (weathercode >= 45 && weathercode <= 48) mappedCode = 3;
+          else if (weathercode >= 51 && weathercode <= 67) mappedCode = 61;
+          else if (weathercode >= 71 && weathercode <= 86) mappedCode = 71;
+          else if (weathercode >= 95) mappedCode = 95;
           else mappedCode = 1;
 
           const type = WEATHER_TYPES.find(t => t.code === mappedCode) || WEATHER_TYPES[0];
 
-          onChange({
+          const newWeather = {
             temperature: Math.round(temperature),
             code: mappedCode,
             condition: type.label,
             locationName
-          });
+          };
+
+          // Save to Cache
+          localStorage.setItem(CACHE_KEY, JSON.stringify({
+              timestamp: Date.now(),
+              data: newWeather
+          }));
+
+          onChange(newWeather);
         } catch (error) {
           console.error("Weather fetch failed", error);
           alert("获取天气失败，请检查网络");
@@ -88,7 +140,6 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({ value, onChange })
         alert("无法定位，请确保浏览器已授权位置权限");
     };
 
-    // Use high accuracy to ensure we get a good fix for the city name
     navigator.geolocation.getCurrentPosition(success, error, {
         enableHighAccuracy: true,
         timeout: 10000,
@@ -121,7 +172,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({ value, onChange })
         <div className="flex gap-2">
             {!value ? (
                 <button
-                    onClick={fetchWeather}
+                    onClick={() => fetchWeather(false)}
                     disabled={loading}
                     className="flex items-center gap-2 px-4 py-2.5 bg-white/50 backdrop-blur-md border border-stone-200/50 rounded-2xl text-stone-500 text-xs font-medium hover:bg-white/80 transition-all"
                 >
@@ -144,7 +195,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({ value, onChange })
                         <span className="text-[10px] text-stone-600 font-medium">{currentType?.label}</span>
                     </div>
 
-                    {/* Temperature Input - Improved width */}
+                    {/* Temperature Input */}
                     <div className="flex items-center pl-2">
                         <input 
                             type="number" 
@@ -156,10 +207,11 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({ value, onChange })
                     </div>
 
                     <button 
-                        onClick={fetchWeather} 
+                        onClick={() => fetchWeather(true)} 
                         className="ml-1 p-1.5 text-stone-300 hover:text-stone-500 hover:bg-stone-200/50 rounded-full transition-colors"
+                        title="刷新天气"
                     >
-                        {loading ? <Loader2 size={12} className="animate-spin" /> : <MapPin size={12} />}
+                        {loading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCcw size={12} />}
                     </button>
                 </div>
             )}
