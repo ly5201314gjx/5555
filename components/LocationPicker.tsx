@@ -48,43 +48,48 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
         return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-        async (position) => {
-            const { latitude, longitude } = position.coords;
-            setCoords({ lat: latitude, lng: longitude });
+    const success = async (position: GeolocationPosition) => {
+        const { latitude, longitude } = position.coords;
+        setCoords({ lat: latitude, lng: longitude });
+        
+        try {
+            // Reverse geocode with zh-CN preference
+            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1&accept-language=zh-CN`);
+            const data = await response.json();
             
-            try {
-                // Reverse geocode with zh-CN preference
-                const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1&accept-language=zh-CN`);
-                const data = await response.json();
-                
-                const addr = data.address;
-                const placeName = addr.amenity || addr.shop || addr.building || addr.office || addr.tourism || addr.road || "我的位置";
-                const city = addr.city || addr.town || addr.district || "";
-                
-                const formatted = `${city} · ${placeName}`;
-                
-                setSearchTerm(formatted);
-                // Also update the list with this precise location as a selectable option
-                setSearchResults([{
-                    display_name: formatted,
-                    isCurrent: true,
-                    lat: latitude,
-                    lon: longitude
-                }]);
-            } catch (e) {
-                console.error("Geocoding failed", e);
-                setSearchTerm(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
-            } finally {
-                setIsLocating(false);
-            }
-        },
-        (error) => {
-            console.error(error);
-            alert("无法获取位置，请检查权限");
+            const addr = data.address;
+            const placeName = addr.amenity || addr.shop || addr.building || addr.office || addr.tourism || addr.road || "我的位置";
+            const city = addr.city || addr.town || addr.district || "";
+            
+            const formatted = `${city} · ${placeName}`;
+            
+            setSearchTerm(formatted);
+            setSearchResults([{
+                display_name: formatted,
+                isCurrent: true,
+                lat: latitude,
+                lon: longitude
+            }]);
+        } catch (e) {
+            console.error("Geocoding failed", e);
+            setSearchTerm(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+        } finally {
             setIsLocating(false);
         }
-    );
+    };
+
+    const error = (err: GeolocationPositionError) => {
+        console.error(err);
+        setIsLocating(false);
+        alert("无法获取位置，可能是权限不足或未开启 HTTPS");
+    };
+
+    // Add 5s timeout
+    navigator.geolocation.getCurrentPosition(success, error, {
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 0
+    });
   };
 
   const confirmLocation = (loc: string, lat?: string, lng?: string) => {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sun, Cloud, CloudRain, CloudSnow, CloudLightning, Wind, Loader2, Thermometer, ChevronDown } from 'lucide-react';
+import { Sun, Cloud, CloudRain, CloudSnow, CloudLightning, Wind, Loader2, Thermometer, ChevronDown, MapPin } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { WeatherInfo } from '../types';
 
@@ -29,17 +29,27 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({ value, onChange })
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
+    const success = async (position: GeolocationPosition) => {
         try {
           const { latitude, longitude } = position.coords;
+          
+          // 1. Get Location Name
+          let locationName = '';
+          try {
+             const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&accept-language=zh-CN`);
+             const geoData = await geoRes.json();
+             locationName = geoData.address.city || geoData.address.town || geoData.address.county || '本地';
+          } catch(e) {
+              locationName = '本地';
+          }
+
+          // 2. Get Weather
           const res = await fetch(
             `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true`
           );
           const data = await res.json();
           const { temperature, weathercode } = data.current_weather;
           
-          // Map WMO code to our simple types
           let mappedCode = 0;
           if (weathercode >= 1 && weathercode <= 3) mappedCode = 1;
           else if (weathercode >= 45 && weathercode <= 48) mappedCode = 3;
@@ -52,7 +62,8 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({ value, onChange })
           onChange({
             temperature: Math.round(temperature),
             code: mappedCode,
-            condition: type.label
+            condition: type.label,
+            locationName
           });
         } catch (error) {
           console.error("Weather fetch failed", error);
@@ -60,20 +71,25 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({ value, onChange })
         } finally {
           setLoading(false);
         }
-      },
-      (err) => {
-        console.error(err);
+    };
+
+    const error = () => {
         setLoading(false);
-        alert("无法获取位置");
-      }
-    );
+        alert("无法获取位置或超时");
+    };
+
+    navigator.geolocation.getCurrentPosition(success, error, {
+        timeout: 5000,
+        maximumAge: 0
+    });
   };
 
   const handleManualSelect = (type: typeof WEATHER_TYPES[0]) => {
     onChange({
       temperature: value?.temperature || 24,
       code: type.code,
-      condition: type.label
+      condition: type.label,
+      locationName: value?.locationName || '手动'
     });
     setShowSelector(false);
   };
@@ -89,9 +105,8 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({ value, onChange })
   const CurrentIcon = currentType?.icon || Sun;
 
   return (
-    <div className="relative z-10">
+    <div className="relative z-10 w-full">
         <div className="flex gap-2">
-            {/* Main Display / Fetch Button */}
             {!value ? (
                 <button
                     onClick={fetchWeather}
@@ -102,40 +117,45 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({ value, onChange })
                     <span>{loading ? '获取中...' : '添加天气'}</span>
                 </button>
             ) : (
-                <div className="flex items-center gap-2 bg-white/50 backdrop-blur-md border border-stone-200/50 rounded-2xl p-1.5 pr-4 shadow-sm">
+                <div className="flex items-center gap-2 bg-white/50 backdrop-blur-md border border-stone-200/50 rounded-2xl p-1.5 pr-4 shadow-sm w-full max-w-[200px]">
                     {/* Icon Selector Trigger */}
                     <button 
                         onClick={() => setShowSelector(!showSelector)}
-                        className={`w-8 h-8 rounded-xl bg-white flex items-center justify-center shadow-sm ${currentType?.color} hover:scale-105 transition-transform`}
+                        className={`flex-shrink-0 w-8 h-8 rounded-xl bg-white flex items-center justify-center shadow-sm ${currentType?.color} hover:scale-105 transition-transform`}
                     >
                         <CurrentIcon size={18} />
                     </button>
 
-                    {/* Temperature Input */}
-                    <div className="flex items-center gap-1">
+                    {/* Location Name Display */}
+                    <div className="flex-1 flex flex-col justify-center min-w-0 px-1 border-r border-stone-200">
+                        <span className="text-[10px] text-stone-400 line-clamp-1">{value.locationName || '未知'}</span>
+                        <span className="text-[10px] text-stone-600 font-medium">{currentType?.label}</span>
+                    </div>
+
+                    {/* Temperature Input - Improved width */}
+                    <div className="flex items-center pl-2">
                         <input 
                             type="number" 
                             value={value.temperature}
                             onChange={handleTempChange}
-                            className="w-8 bg-transparent text-sm font-semibold text-stone-700 text-center focus:outline-none border-b border-transparent hover:border-stone-200 focus:border-stone-400 transition-colors"
+                            className="w-10 bg-transparent text-sm font-semibold text-stone-700 text-right focus:outline-none border-b border-transparent hover:border-stone-200 focus:border-stone-400 transition-colors"
                         />
-                        <span className="text-xs text-stone-400">°C</span>
+                        <span className="text-xs text-stone-400 ml-0.5">°C</span>
                     </div>
 
                     <button 
                         onClick={fetchWeather} 
-                        className="ml-2 p-1.5 text-stone-300 hover:text-stone-500 hover:bg-stone-200/50 rounded-full transition-colors"
+                        className="ml-1 p-1.5 text-stone-300 hover:text-stone-500 hover:bg-stone-200/50 rounded-full transition-colors"
                     >
                         {loading ? <Loader2 size={12} className="animate-spin" /> : <Thermometer size={12} />}
                     </button>
                 </div>
             )}
             
-            {/* Manual Preset Button (if not already set) */}
             {!value && (
                 <button
                     onClick={() => {
-                        onChange({ temperature: 24, code: 0, condition: '晴朗' });
+                        onChange({ temperature: 24, code: 0, condition: '晴朗', locationName: '手动' });
                         setShowSelector(true);
                     }}
                     className="px-4 py-2.5 bg-white/30 border border-stone-100/50 rounded-2xl text-stone-400 text-xs hover:bg-white/50 transition-all"

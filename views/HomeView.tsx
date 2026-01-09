@@ -37,10 +37,10 @@ interface HomeViewProps {
   onLayoutChange: (mode: 'grid' | 'list') => void;
   initialScroll: number;
   onScrollSave: (pos: number) => void;
+  allTags: string[]; // Recieve global tags
 }
 
 // Wrapper Component for Sortable Items
-// Must be a motion component to handle layout animations (Grid <-> List)
 const SortableFoodCardWrapper = ({ id, children, disabled, layoutMode }: any) => {
     const {
         attributes,
@@ -72,7 +72,7 @@ const SortableFoodCardWrapper = ({ id, children, disabled, layoutMode }: any) =>
                 scale: isDragging ? 1.05 : 1,
             }}
             transition={{ duration: 0.2 }}
-            className="h-full"
+            className="h-full w-full"
         >
             {children}
         </motion.div>
@@ -86,7 +86,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
     layoutMode,
     onLayoutChange,
     initialScroll,
-    onScrollSave
+    onScrollSave,
+    allTags
 }) => {
   const [activeCategory, setActiveCategory] = useState("全部");
   const [isSelectionMode, setIsSelectionMode] = useState(false);
@@ -111,13 +112,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
       onScrollSave(e.currentTarget.scrollTop);
   };
 
-  // DnD Sensors
-  // Optimized for mobile: Long press (150ms) to drag, simple tap to click.
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        delay: 150, // Long press to start drag
-        tolerance: 5, // Allow slight movement during press
+        delay: 150, 
+        tolerance: 5, 
       },
     }),
     useSensor(KeyboardSensor, {
@@ -125,14 +124,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
     })
   );
 
-  // Categories
+  // Use props tags instead of calculating locally
   const categories = useMemo(() => {
-    const allTags = new Set<string>();
-    entries.forEach(entry => {
-        entry.tags.forEach(tag => allTags.add(tag));
-    });
-    return ["全部", ...Array.from(allTags).sort()];
-  }, [entries]);
+    return ["全部", ...allTags.sort()];
+  }, [allTags]);
 
   const visibleEntries = useMemo(() => {
       return activeCategory === "全部" 
@@ -178,8 +173,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
       }
   };
 
-  // Long press handler from the card itself
-  // We use this to trigger selection mode if not already in it
   const handleCardLongPress = (id: string) => {
       if (!isSelectionMode) {
           setIsSelectionMode(true);
@@ -189,7 +182,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
   };
 
   // --- Actions ---
-
   const executeDeleteCards = () => {
       const remaining = entries.filter(e => !selectedIds.includes(e.id));
       onEntriesUpdate(remaining);
@@ -260,122 +252,120 @@ export const HomeView: React.FC<HomeViewProps> = ({
     <div 
         ref={containerRef}
         onScroll={handleScroll}
-        className="h-screen overflow-y-auto no-scrollbar bg-[#FAFAF9] relative"
+        className="h-full overflow-y-auto no-scrollbar bg-[#FAFAF9] relative"
     >
-      <div className="pb-36 pt-4 px-4 max-w-2xl mx-auto min-h-screen">
+      <div className="pb-36 pt-safe-top px-4 max-w-2xl mx-auto min-h-screen">
         
-        {/* Sticky Header */}
-        <div className="sticky top-0 z-30 pt-safe-top -mx-4 px-4 bg-gradient-to-b from-[#FAFAF9] via-[#FAFAF9]/95 to-transparent pb-4">
-            <div className="h-12 flex items-center justify-between mb-2">
-                <AnimatePresence mode="wait">
-                    {isSelectionMode ? (
-                        <motion.div 
-                            key="select-mode"
-                            initial={{ opacity: 0, y: -10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            className="flex items-center justify-between w-full"
-                        >
-                             <button 
+        {/* Header Row: Title & Actions */}
+        <div className="flex items-center justify-between mb-4 pt-4 px-1">
+            <AnimatePresence mode="wait">
+                {isSelectionMode ? (
+                    <motion.div 
+                        key="select-mode"
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 10 }}
+                        className="flex items-center justify-between w-full"
+                    >
+                         <div className="flex items-center gap-3">
+                            <button 
                                 onClick={toggleSelectionMode} 
-                                className="w-9 h-9 flex items-center justify-center rounded-full bg-stone-100 text-stone-500 hover:bg-stone-200 transition-colors"
-                             >
-                                <X size={18} />
-                             </button>
-
-                             <motion.div 
-                                layoutId="selection-capsule"
-                                className="px-4 py-1.5 bg-stone-800 text-stone-50 text-xs font-medium rounded-full shadow-sm"
-                             >
+                                className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-100 text-stone-500 hover:bg-stone-200 transition-colors"
+                            >
+                                <X size={16} />
+                            </button>
+                            <span className="text-xs font-semibold text-stone-600 bg-stone-100 px-3 py-1 rounded-full">
                                 已选 {selectedIds.length}
-                             </motion.div>
-                             
-                             <div className="flex items-center gap-2">
-                                <button 
-                                    onClick={() => selectedIds.length > 0 && setShowMoveModal(true)}
-                                    className={`w-9 h-9 flex items-center justify-center rounded-full transition-all ${selectedIds.length > 0 ? 'bg-stone-100 text-stone-600 hover:bg-stone-200' : 'bg-stone-50 text-stone-200'}`}
-                                >
-                                    <FolderInput size={18} />
-                                </button>
-                                <button 
-                                    onClick={() => selectedIds.length > 0 && setDeleteConfirmType('cards')}
-                                    className={`w-9 h-9 flex items-center justify-center rounded-full transition-all ${selectedIds.length > 0 ? 'bg-red-50 text-red-500 hover:bg-red-100' : 'bg-stone-50 text-stone-200'}`}
-                                >
-                                    <Trash2 size={18} />
-                                </button>
-                             </div>
-                        </motion.div>
-                    ) : (
-                        <motion.div 
-                            key="normal-mode"
-                            initial={{ opacity: 0, y: -10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            className="flex items-center justify-between w-full"
-                        >
-                            <h1 className="serif text-xl font-medium text-stone-800 tracking-wide pl-1">食 · 记</h1>
-                            <div className="flex items-center gap-2">
-                                {/* Toggle Button for Selection Mode - Visible access */}
-                                <button 
-                                    onClick={toggleSelectionMode}
-                                    className="w-9 h-9 flex items-center justify-center rounded-full text-stone-400 hover:bg-stone-100 transition-colors"
-                                >
-                                    <CheckCircle2 size={18} />
-                                </button>
-                                <button 
-                                    onClick={() => onLayoutChange(layoutMode === 'grid' ? 'list' : 'grid')}
-                                    className="w-9 h-9 flex items-center justify-center rounded-full text-stone-400 hover:bg-stone-100 transition-colors"
-                                >
-                                    {layoutMode === 'grid' ? <LayoutList size={18} /> : <LayoutGrid size={18} />}
-                                </button>
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </div>
+                            </span>
+                         </div>
+                         
+                         <div className="flex items-center gap-2">
+                            <button 
+                                onClick={() => selectedIds.length > 0 && setShowMoveModal(true)}
+                                className={`w-8 h-8 flex items-center justify-center rounded-full transition-all ${selectedIds.length > 0 ? 'bg-stone-100 text-stone-600 hover:bg-stone-200' : 'bg-stone-50 text-stone-200'}`}
+                            >
+                                <FolderInput size={16} />
+                            </button>
+                            <button 
+                                onClick={() => selectedIds.length > 0 && setDeleteConfirmType('cards')}
+                                className={`w-8 h-8 flex items-center justify-center rounded-full transition-all ${selectedIds.length > 0 ? 'bg-red-50 text-red-500 hover:bg-red-100' : 'bg-stone-50 text-stone-200'}`}
+                            >
+                                <Trash2 size={16} />
+                            </button>
+                         </div>
+                    </motion.div>
+                ) : (
+                    <motion.div 
+                        key="normal-mode"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="flex items-center justify-between w-full"
+                    >
+                        <h1 className="serif text-xl font-medium text-stone-800 tracking-wide pl-1">食 · 记</h1>
+                        <div className="flex items-center gap-2">
+                            <button 
+                                onClick={toggleSelectionMode}
+                                className="w-9 h-9 flex items-center justify-center rounded-full text-stone-400 hover:bg-stone-100 transition-colors"
+                            >
+                                <CheckCircle2 size={18} />
+                            </button>
+                            <button 
+                                onClick={() => onLayoutChange(layoutMode === 'grid' ? 'list' : 'grid')}
+                                className="w-9 h-9 flex items-center justify-center rounded-full text-stone-400 hover:bg-stone-100 transition-colors"
+                            >
+                                {layoutMode === 'grid' ? <LayoutList size={18} /> : <LayoutGrid size={18} />}
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
 
-            {/* Tags/Categories Horizontal Scroll Area */}
-            <motion.div 
-                animate={{ height: isSelectionMode ? 0 : 'auto', opacity: isSelectionMode ? 0 : 1 }}
-                className="overflow-hidden"
-            >
-                {/* 
-                   Fade Mask Logic:
-                   Uses a linear gradient mask to fade the edges, indicating scrollability.
-                */}
-                <div 
-                    className="relative w-full"
-                    style={{
-                        maskImage: 'linear-gradient(to right, transparent 0%, black 5%, black 95%, transparent 100%)',
-                        WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 5%, black 95%, transparent 100%)'
-                    }}
-                >
-                    <div className="flex gap-3 overflow-x-auto no-scrollbar py-2 px-1 items-center flex-nowrap">
-                        <AnimatePresence mode="popLayout">
-                            {categories.map((cat) => (
-                                <motion.div 
-                                    key={cat} 
-                                    layout
-                                    initial={{ opacity: 0, scale: 0.8 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    exit={{ opacity: 0, scale: 0.8 }}
-                                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                                    className="flex-shrink-0" // Critical for preventing compression
-                                >
-                                    <MiniCapsule 
-                                        label={cat} 
-                                        active={activeCategory === cat} 
-                                        onClick={() => setActiveCategory(cat)}
-                                        onLongPress={() => handleTagLongPress(cat)}
-                                    />
-                                </motion.div>
-                            ))}
-                        </AnimatePresence>
-                        {/* Spacer to allow scrolling past the last item comfortably */}
-                        <div className="w-2 flex-shrink-0" />
-                    </div>
-                </div>
-            </motion.div>
+        {/* Sticky Floating Glass Category Bar */}
+        <div className="sticky top-4 z-40 mb-6">
+            <AnimatePresence>
+                {!isSelectionMode && (
+                    <motion.div 
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20, height: 0 }}
+                        className="mx-auto max-w-[95%]"
+                    >
+                        {/* Glass Container */}
+                        <div className="bg-white/70 backdrop-blur-xl border border-white/40 shadow-xl shadow-stone-200/40 rounded-full py-1.5 px-2 flex items-center relative overflow-hidden">
+                             {/* Scrollable Area */}
+                             <div className="overflow-x-auto no-scrollbar flex items-center w-full relative">
+                                <div className="flex gap-1.5 px-1 items-center flex-nowrap min-w-full">
+                                    {categories.map((cat) => (
+                                        <motion.div 
+                                            key={cat} 
+                                            layout
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            className="flex-shrink-0"
+                                        >
+                                            <MiniCapsule 
+                                                label={cat} 
+                                                active={activeCategory === cat} 
+                                                onClick={() => setActiveCategory(cat)}
+                                                onLongPress={() => handleTagLongPress(cat)}
+                                                // Override styles for the glass bar
+                                                className={`!py-1.5 !px-4 !text-[10px] ${activeCategory === cat ? '!shadow-none !bg-stone-800 !text-white' : '!bg-transparent !border-transparent !text-stone-500 hover:!bg-stone-100/50'}`}
+                                            />
+                                        </motion.div>
+                                    ))}
+                                    <div className="w-1 flex-shrink-0" />
+                                </div>
+                             </div>
+                             
+                             {/* Fade Gradients for visual cue */}
+                             <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-white/60 to-transparent pointer-events-none rounded-l-full" />
+                             <div className="absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-white/60 to-transparent pointer-events-none rounded-r-full" />
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
 
         {/* Content Feed with DndContext */}
@@ -388,12 +378,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <SortableContext 
                 items={visibleEntries.map(e => e.id)} 
                 strategy={layoutMode === 'grid' ? rectSortingStrategy : verticalListSortingStrategy}
-                // Allow dragging in 'All' view OR if selection mode is on. 
-                // This fixes the "cannot drag" issue.
                 disabled={activeCategory !== "全部"} 
             >
                 <motion.div 
-                    layout // Animate the container structure change (Grid <-> List)
+                    layout 
                     className={layoutMode === 'grid' ? "grid grid-cols-2 gap-3" : "flex flex-col gap-2"}
                 >
                     {visibleEntries.map((entry, index) => (
@@ -416,14 +404,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 </motion.div>
             </SortableContext>
 
-            {/* Drag Overlay for Visual Feedback */}
             <DragOverlay adjustScale={true}>
                 {activeDragId ? (
                     <div className="opacity-90 scale-105 cursor-grabbing z-50 pointer-events-none">
                          <FoodCard 
                             entry={entries.find(e => e.id === activeDragId)!}
                             index={0}
-                            isSelectionMode={isSelectionMode} // Match current mode visual
+                            isSelectionMode={isSelectionMode} 
                             isSelected={selectedIds.includes(activeDragId)}
                             layoutMode={layoutMode}
                             onClick={() => {}}
@@ -440,9 +427,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </div>
         )}
 
-        {/* --- Modals & Popups --- */}
-
-        {/* 1. Tag Management */}
+        {/* --- Modals --- */}
         <AnimatePresence>
             {manageTag && (
                 <motion.div 
@@ -471,7 +456,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
             )}
         </AnimatePresence>
 
-        {/* 2. Generic Delete */}
         <AnimatePresence>
             {deleteConfirmType && (
                 <motion.div 
@@ -507,7 +491,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
             )}
         </AnimatePresence>
 
-        {/* 3. Move Modal */}
         <AnimatePresence>
             {showMoveModal && (
                 <motion.div 
@@ -536,7 +519,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 </motion.div>
             )}
         </AnimatePresence>
-
       </div>
     </div>
   );

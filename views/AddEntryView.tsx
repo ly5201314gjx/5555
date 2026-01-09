@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Tag, Plus, Save, Star, ArrowLeft } from 'lucide-react';
+import { Camera, Tag, Plus, Save, Star, ArrowLeft, X, Check, ImagePlus } from 'lucide-react';
 import { MiniCapsule } from '../components/MiniCapsule';
 import { LocationPicker } from '../components/LocationPicker';
 import { WeatherWidget } from '../components/WeatherWidget';
@@ -10,38 +10,53 @@ interface AddEntryViewProps {
   initialEntry?: FoodEntry;
   onSave: (entry: FoodEntry) => void;
   onCancel?: () => void;
+  globalTags: string[]; // Received from App
 }
 
-export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, initialEntry }) => {
+export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, initialEntry, globalTags }) => {
   // State for form fields
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
   const [rating, setRating] = useState(0);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [availableTags, setAvailableTags] = useState<string[]>(['早餐', '约会', '甜点', '健康', '微醺']);
+  
+  // Images
+  const [images, setImages] = useState<string[]>([]);
+  const [coverIndex, setCoverIndex] = useState(0);
+
+  // Tags
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  
   const [weather, setWeather] = useState<WeatherInfo | undefined>(undefined);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // Load initial data if editing
+  // Initialize Data
   useEffect(() => {
-      if (initialEntry) {
-          setTitle(initialEntry.title);
-          setLocation(initialEntry.location);
-          setDescription(initialEntry.description);
-          setRating(initialEntry.rating);
-          setImagePreview(initialEntry.imageUrl);
-          setSelectedTags(initialEntry.tags);
-          setWeather(initialEntry.weather);
-          // Ensure tags exist in available tags
-          const newTags = initialEntry.tags.filter(t => !availableTags.includes(t));
-          if (newTags.length > 0) {
-              setAvailableTags(prev => [...prev, ...newTags]);
-          }
-      }
-  }, [initialEntry]);
+    // Merge global tags with any unique ones here if needed, 
+    // but mostly rely on globalTags for the options.
+    setAvailableTags(globalTags);
+
+    if (initialEntry) {
+        setTitle(initialEntry.title);
+        setLocation(initialEntry.location);
+        setDescription(initialEntry.description);
+        setRating(initialEntry.rating);
+        
+        // Handle image migration
+        if (initialEntry.images && initialEntry.images.length > 0) {
+            setImages(initialEntry.images);
+            setCoverIndex(initialEntry.coverImageIndex || 0);
+        } else if ((initialEntry as any).imageUrl) {
+            setImages([(initialEntry as any).imageUrl]);
+            setCoverIndex(0);
+        }
+
+        setSelectedTags(initialEntry.tags);
+        setWeather(initialEntry.weather);
+    }
+  }, [initialEntry, globalTags]);
 
   const toggleTag = (tag: string) => {
     if (selectedTags.includes(tag)) {
@@ -56,62 +71,77 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
     if (!inputValue || inputValue.trim() === "") return;
 
     const tag = inputValue.trim();
-    if (availableTags.includes(tag)) {
-        if (!selectedTags.includes(tag)) setSelectedTags(prev => [...prev, tag]);
-    } else {
+    if (!availableTags.includes(tag)) {
         setAvailableTags(prev => [...prev, tag]);
+    }
+    if (!selectedTags.includes(tag)) {
         setSelectedTags(prev => [...prev, tag]);
     }
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-        if (!file.type.startsWith('image/')) {
-            alert('请上传图片文件');
-            return;
-        }
+    if (images.length >= 9) {
+        alert("最多只能上传 9 张图片");
+        return;
+    }
 
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            const img = new Image();
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                let width = img.width;
-                let height = img.height;
-                const MAX_SIZE = 800; 
+    const files = e.target.files;
+    if (files && files.length > 0) {
+        const remainingSlots = 9 - images.length;
+        const filesToProcess = Array.from(files).slice(0, remainingSlots);
 
-                if (width > height) {
-                    if (width > MAX_SIZE) {
-                        height *= MAX_SIZE / width;
-                        width = MAX_SIZE;
+        filesToProcess.forEach((file: File) => {
+            if (!file.type.startsWith('image/')) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    const MAX_SIZE = 1000; 
+
+                    if (width > height) {
+                        if (width > MAX_SIZE) {
+                            height *= MAX_SIZE / width;
+                            width = MAX_SIZE;
+                        }
+                    } else {
+                        if (height > MAX_SIZE) {
+                            width *= MAX_SIZE / height;
+                            height = MAX_SIZE;
+                        }
                     }
-                } else {
-                    if (height > MAX_SIZE) {
-                        width *= MAX_SIZE / height;
-                        height = MAX_SIZE;
-                    }
-                }
 
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                if (ctx) {
-                    ctx.drawImage(img, 0, 0, width, height);
-                    const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.6);
-                    setImagePreview(compressedDataUrl);
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                        ctx.drawImage(img, 0, 0, width, height);
+                        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                        setImages(prev => [...prev, compressedDataUrl]);
+                    }
+                };
+                if (event.target?.result) {
+                    img.src = event.target.result as string;
                 }
             };
-            if (event.target?.result) {
-                img.src = event.target.result as string;
-            }
-        };
-        reader.readAsDataURL(file);
+            reader.readAsDataURL(file);
+        });
     }
+    // Reset input
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const triggerFileInput = () => {
-      fileInputRef.current?.click();
+  const removeImage = (index: number) => {
+      const newImages = images.filter((_, i) => i !== index);
+      setImages(newImages);
+      if (coverIndex === index) {
+          setCoverIndex(0);
+      } else if (coverIndex > index) {
+          setCoverIndex(coverIndex - 1);
+      }
   };
 
   const handleSave = () => {
@@ -125,7 +155,8 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
           title,
           location: location || '未知地点',
           date: initialEntry ? initialEntry.date : new Date().toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }),
-          imageUrl: imagePreview || `https://picsum.photos/seed/${Date.now()}/800/1000`, 
+          images: images.length > 0 ? images : [`https://picsum.photos/seed/${Date.now()}/800/1000`], 
+          coverImageIndex: coverIndex >= images.length ? 0 : coverIndex,
           tags: selectedTags,
           rating: rating > 0 ? rating : 0,
           description: description || '暂无描述',
@@ -138,7 +169,7 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
   const inputClass = "w-full bg-white/50 backdrop-blur-md border border-stone-200/50 rounded-2xl px-5 py-3 text-sm text-stone-700 placeholder-stone-400 focus:outline-none focus:bg-white/80 focus:border-stone-300 focus:shadow-sm transition-all duration-300";
 
   return (
-    <div className="pb-40 pt-8 px-6 max-w-2xl mx-auto h-full overflow-y-auto no-scrollbar">
+    <div className="pb-40 pt-8 px-6 max-w-2xl mx-auto h-full overflow-y-auto no-scrollbar relative">
       <motion.div
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -152,44 +183,60 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
             <h2 className="serif text-xl text-stone-800 tracking-wide font-medium">
                 {initialEntry ? '编辑记录' : '记录美好'}
             </h2>
-            <div className="w-10"></div> {/* Spacer for centering */}
+            <div className="w-10"></div> 
         </div>
 
-        {/* Photo Upload Area */}
-        <div 
-            onClick={triggerFileInput}
-            className="w-full aspect-video bg-white/40 backdrop-blur-sm rounded-[2rem] border border-stone-100 flex flex-col items-center justify-center mb-10 group cursor-pointer hover:bg-white/60 hover:shadow-sm transition-all duration-300 relative overflow-hidden shadow-inner shadow-stone-200/50"
-        >
-             <input 
-                ref={fileInputRef}
-                type="file" 
-                className="hidden" 
-                accept="image/*"
-                onChange={handleImageUpload}
-             />
-             
-             {imagePreview ? (
-                <>
-                    <img 
-                        src={imagePreview} 
-                        alt="Preview" 
-                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110" 
-                    />
-                    <div className="absolute inset-0 bg-stone-900/20 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center backdrop-blur-[2px]">
-                        <div className="bg-white/90 backdrop-blur-xl border border-white/50 px-5 py-2.5 rounded-full text-stone-800 shadow-xl transform translate-y-2 group-hover:translate-y-0 transition-all duration-300 flex items-center gap-2">
-                             <Camera size={16} strokeWidth={2.5} />
-                             <span className="text-xs font-bold tracking-widest uppercase">更换图片</span>
-                        </div>
+        {/* Photo Upload Area - Scrollable Horizontal List if multiple */}
+        <div className="mb-8">
+            <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+                {images.map((img, idx) => (
+                    <div key={idx} className="relative flex-shrink-0 w-40 h-52 rounded-2xl overflow-hidden group border border-stone-100 shadow-sm">
+                        <img src={img} className="w-full h-full object-cover" alt={`Upload ${idx}`} />
+                        
+                        {/* Remove Button */}
+                        <button 
+                            onClick={() => removeImage(idx)}
+                            className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                            <X size={12} />
+                        </button>
+
+                        {/* Cover Indicator/Selector */}
+                        <button 
+                            onClick={() => setCoverIndex(idx)}
+                            className={`absolute bottom-2 right-2 px-2 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 backdrop-blur-md transition-colors ${coverIndex === idx ? 'bg-amber-400 text-white shadow-sm' : 'bg-black/30 text-white/70 hover:bg-black/50'}`}
+                        >
+                            {coverIndex === idx ? <Star size={10} fill="currentColor" /> : null}
+                            <span>{coverIndex === idx ? '封面' : '设为封面'}</span>
+                        </button>
                     </div>
-                </>
-             ) : (
-                 <>
-                     <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center shadow-md text-stone-400 group-hover:text-stone-600 transition-colors z-10">
-                        <Camera size={22} strokeWidth={1.5} />
-                     </div>
-                     <p className="mt-3 text-[10px] font-medium text-stone-400 tracking-widest z-10">上传影像</p>
-                 </>
-             )}
+                ))}
+
+                {/* Add Button */}
+                {images.length < 9 && (
+                    <div 
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex-shrink-0 w-40 h-52 bg-white/40 backdrop-blur-sm rounded-2xl border border-dashed border-stone-300 flex flex-col items-center justify-center cursor-pointer hover:bg-stone-50 hover:border-stone-400 transition-all text-stone-400"
+                    >
+                         <input 
+                            ref={fileInputRef}
+                            type="file" 
+                            className="hidden" 
+                            accept="image/*"
+                            multiple
+                            onChange={handleImageUpload}
+                         />
+                         <div className="w-10 h-10 rounded-full bg-stone-100 flex items-center justify-center mb-2">
+                             <ImagePlus size={20} />
+                         </div>
+                         <span className="text-xs">添加图片</span>
+                         <span className="text-[9px] mt-1 text-stone-300">{images.length}/9</span>
+                    </div>
+                )}
+            </div>
+            {images.length === 0 && (
+                 <p className="text-center text-xs text-stone-400 mt-2">至少上传一张图片</p>
+            )}
         </div>
 
         {/* Form Inputs */}
@@ -225,7 +272,6 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
                         <span className="text-[10px] font-medium tracking-wide uppercase">选择标签</span>
                     </div>
                 </div>
-                {/* Optimized Tag layout with transitions */}
                 <motion.div layout className="flex flex-wrap gap-2 p-4 rounded-3xl bg-white/30 border border-stone-100/50">
                     <AnimatePresence>
                         {availableTags.map(tag => (
@@ -281,13 +327,14 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
             </div>
         </div>
 
-        {/* Floating Action Button for Save - Positioned Higher */}
-        <div className="fixed bottom-8 right-6 z-40">
+        {/* Refined Save Button */}
+        <div className="fixed bottom-8 left-0 right-0 flex justify-center z-40 pointer-events-none">
             <button 
                 onClick={handleSave}
-                className="bg-stone-800 text-stone-50 w-14 h-14 rounded-full shadow-xl shadow-stone-300 flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-300"
+                className="pointer-events-auto bg-stone-800 text-stone-50 px-8 py-3 rounded-full shadow-lg shadow-stone-300/50 flex items-center gap-3 hover:bg-stone-900 active:scale-95 transition-all duration-300"
             >
-                <Save size={24} strokeWidth={1.5} />
+                <Save size={18} strokeWidth={2} />
+                <span className="text-sm font-medium tracking-widest">保存记录</span>
             </button>
         </div>
 

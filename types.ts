@@ -2,6 +2,7 @@ export interface WeatherInfo {
   temperature: number;
   condition: string; // 'Sunny', 'Cloudy', 'Rainy', 'Snowy', 'Windy'
   code: number; // WMO code
+  locationName?: string; // Cache the location name for the weather
 }
 
 export interface FoodEntry {
@@ -9,7 +10,8 @@ export interface FoodEntry {
   title: string;
   location: string;
   date: string;
-  imageUrl: string;
+  images: string[]; // Changed from single imageUrl to array
+  coverImageIndex: number; // Index of the cover image
   tags: string[];
   rating: number; // 1-5
   description: string;

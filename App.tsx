@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ViewState, FoodEntry } from './types';
 import { BottomNav } from './components/BottomNav';
@@ -7,53 +7,59 @@ import { DiscoverView } from './views/DiscoverView';
 import { AddEntryView } from './views/AddEntryView';
 import { DetailView } from './views/DetailView';
 
-// Initial Mock Data
+// Initial Mock Data with multiple images structure
 const INITIAL_ENTRIES: FoodEntry[] = [
   {
     id: '1',
     title: '宇治抹茶舒芙蕾',
     location: '京都茶寮',
     date: '10月12日',
-    imageUrl: 'https://picsum.photos/id/431/800/1000',
+    images: ['https://picsum.photos/id/431/800/1000', 'https://picsum.photos/id/432/800/1000'],
+    coverImageIndex: 0,
     tags: ['早餐', '甜点'],
     rating: 4.8,
     description: '如云朵般蓬松的口感，散发着浓郁的抹茶香气。',
-    weather: { temperature: 22, condition: '晴朗', code: 0 }
+    weather: { temperature: 22, condition: '晴朗', code: 0, locationName: '京都' }
   },
   {
     id: '2',
     title: '手工酸种吐司',
     location: '晨间面包房',
     date: '10月10日',
-    imageUrl: 'https://picsum.photos/id/1080/800/1000',
+    images: ['https://picsum.photos/id/1080/800/1000'],
+    coverImageIndex: 0,
     tags: ['早午餐', '有机'],
     rating: 4.5,
     description: '本地采购的牛油果配上水波蛋和少许辣椒碎。',
-    weather: { temperature: 18, condition: '多云', code: 1 }
+    weather: { temperature: 18, condition: '多云', code: 1, locationName: '上海' }
   },
   {
     id: '3',
     title: '主厨特选寿司',
     location: '禅 · 寿司',
     date: '10月08日',
-    imageUrl: 'https://picsum.photos/id/225/800/1000',
+    images: ['https://picsum.photos/id/225/800/1000', 'https://picsum.photos/id/226/800/1000', 'https://picsum.photos/id/227/800/1000'],
+    coverImageIndex: 0,
     tags: ['晚餐', '日料'],
     rating: 5.0,
     description: '一场十二道时令鱼生的味觉之旅。',
-    weather: { temperature: 15, condition: '下雨', code: 61 }
+    weather: { temperature: 15, condition: '下雨', code: 61, locationName: '东京' }
   },
   {
       id: '4',
       title: '埃塞俄比亚手冲',
       location: '蓝瓶咖啡',
       date: '10月05日',
-      imageUrl: 'https://picsum.photos/id/1060/800/1000',
+      images: ['https://picsum.photos/id/1060/800/1000'],
+      coverImageIndex: 0,
       tags: ['咖啡', '午后'],
       rating: 4.2,
       description: '带有蓝莓气息的花香调。',
-      weather: { temperature: 20, condition: '晴朗', code: 0 }
+      weather: { temperature: 20, condition: '晴朗', code: 0, locationName: '旧金山' }
   }
 ];
+
+const DEFAULT_TAGS = ['早餐', '约会', '甜点', '健康', '微醺', '晚餐', '咖啡'];
 
 const ProfileView = () => (
   <div className="flex flex-col items-center justify-center h-screen text-stone-400 gap-4">
@@ -82,6 +88,14 @@ const App: React.FC = () => {
       return INITIAL_ENTRIES;
     }
   });
+
+  // Derived global tags: Combine defaults with any custom tags found in entries
+  const allTags = useMemo(() => {
+    const entryTags = new Set<string>();
+    entries.forEach(e => e.tags.forEach(t => entryTags.add(t)));
+    DEFAULT_TAGS.forEach(t => entryTags.add(t));
+    return Array.from(entryTags);
+  }, [entries]);
 
   const handleUpdateEntries = (newEntries: FoodEntry[]) => {
       setEntries(newEntries);
@@ -126,10 +140,11 @@ const App: React.FC = () => {
       else setCurrentView(ViewState.HOME);
   };
 
+  // Improved variants for smoother cross-fade, preventing white screen
   const pageVariants = {
-    initial: { opacity: 0, scale: 0.98 },
+    initial: { opacity: 0, scale: 0.99 },
     in: { opacity: 1, scale: 1 },
-    out: { opacity: 0, scale: 1.02 }
+    out: { opacity: 0, scale: 1.01 }
   };
 
   const renderView = () => {
@@ -144,12 +159,19 @@ const App: React.FC = () => {
                 onLayoutChange={handleLayoutChange}
                 initialScroll={homeScrollPos}
                 onScrollSave={setHomeScrollPos}
+                allTags={allTags} // Pass synced tags
             />
         );
       case ViewState.SEARCH:
         return <DiscoverView />;
       case ViewState.ADD:
-        return <AddEntryView onSave={handleSaveEntry} onCancel={() => setCurrentView(ViewState.HOME)} />;
+        return (
+          <AddEntryView 
+            onSave={handleSaveEntry} 
+            onCancel={() => setCurrentView(ViewState.HOME)} 
+            globalTags={allTags} // Pass synced tags
+          />
+        );
       case ViewState.PROFILE:
         return <ProfileView />;
       case ViewState.DETAIL:
@@ -157,19 +179,16 @@ const App: React.FC = () => {
         return entry ? <DetailView entry={entry} onBack={handleBack} onEdit={handleEditClick} /> : null;
       case ViewState.EDIT:
         const editEntry = getActiveEntry();
-        return editEntry ? <AddEntryView initialEntry={editEntry} onSave={handleSaveEntry} onCancel={handleBack} /> : null;
-      default:
-        return (
-            <HomeView 
-                entries={entries} 
-                onEntriesUpdate={handleUpdateEntries}
-                onEntryClick={handleEntryClick} 
-                layoutMode={layoutMode}
-                onLayoutChange={handleLayoutChange}
-                initialScroll={homeScrollPos}
-                onScrollSave={setHomeScrollPos}
+        return editEntry ? (
+            <AddEntryView 
+                initialEntry={editEntry} 
+                onSave={handleSaveEntry} 
+                onCancel={handleBack}
+                globalTags={allTags}
             />
-        );
+        ) : null;
+      default:
+        return null;
     }
   };
 
@@ -177,20 +196,26 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#FAFAF9] text-stone-800 relative selection:bg-stone-200 overflow-x-hidden">
+      {/* Background gradients */}
       <div className="fixed top-0 left-0 w-full h-64 bg-gradient-to-b from-white/80 to-transparent pointer-events-none z-0" />
       <div className="fixed top-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-stone-200/30 rounded-full blur-[100px] pointer-events-none z-0 mix-blend-multiply" />
       <div className="fixed bottom-[-10%] left-[-10%] w-[60vw] h-[60vw] bg-warm-gray-100/40 rounded-full blur-[120px] pointer-events-none z-0 mix-blend-multiply" />
 
       <main className="relative z-10 w-full min-h-screen safe-area-bottom">
-        <AnimatePresence mode="wait" initial={false}>
+        {/* Removed mode="wait" to allow overlap and prevent white flash */}
+        <AnimatePresence initial={false}>
           <motion.div
             key={currentView}
             initial="initial"
             animate="in"
             exit="out"
             variants={pageVariants}
-            transition={{ type: "tween", ease: "circOut", duration: 0.3 }}
-            className="w-full h-full"
+            transition={{ duration: 0.25, ease: "easeInOut" }} // Faster, smoother transition
+            className="w-full h-full absolute inset-0" // Absolute positioning needed for overlap
+            style={{ 
+              overflowY: currentView === ViewState.HOME ? 'hidden' : 'auto', 
+              height: '100%' 
+            }}
           >
             {renderView()}
           </motion.div>
