@@ -102,6 +102,23 @@ const App: React.FC = () => {
       localStorage.setItem('gourmet_journal_entries', JSON.stringify(newEntries));
   };
 
+  // Renaming a tag updates all entries that use it
+  const handleRenameTag = (oldTag: string, newTag: string) => {
+    if (!oldTag || !newTag || oldTag === newTag) return;
+    
+    const updatedEntries = entries.map(entry => {
+      if (entry.tags.includes(oldTag)) {
+        return {
+          ...entry,
+          tags: entry.tags.map(t => t === oldTag ? newTag : t)
+        };
+      }
+      return entry;
+    });
+    
+    handleUpdateEntries(updatedEntries);
+  };
+
   const handleLayoutChange = (mode: 'grid' | 'list') => {
       setLayoutMode(mode);
       localStorage.setItem('gourmet_layout_mode', mode);
@@ -160,6 +177,7 @@ const App: React.FC = () => {
                 initialScroll={homeScrollPos}
                 onScrollSave={setHomeScrollPos}
                 allTags={allTags} // Pass synced tags
+                onRenameTag={handleRenameTag} // Pass rename handler
             />
         );
       case ViewState.SEARCH:

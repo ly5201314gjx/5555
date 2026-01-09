@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FoodCard } from '../components/FoodCard';
 import { MiniCapsule } from '../components/MiniCapsule';
 import { FoodEntry } from '../types';
-import { Trash2, X, LayoutGrid, LayoutList, Tag, FolderInput, ArrowRightLeft, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Trash2, X, LayoutGrid, LayoutList, Tag, FolderInput, ArrowRightLeft, AlertTriangle, CheckCircle2, Edit2, Check } from 'lucide-react';
 
 // dnd-kit imports
 import {
@@ -37,7 +37,8 @@ interface HomeViewProps {
   onLayoutChange: (mode: 'grid' | 'list') => void;
   initialScroll: number;
   onScrollSave: (pos: number) => void;
-  allTags: string[]; // Recieve global tags
+  allTags: string[]; 
+  onRenameTag: (oldTag: string, newTag: string) => void;
 }
 
 // Wrapper Component for Sortable Items
@@ -55,7 +56,7 @@ const SortableFoodCardWrapper = ({ id, children, disabled, layoutMode }: any) =>
         transform: CSS.Transform.toString(transform),
         transition,
         zIndex: isDragging ? 50 : 'auto',
-        touchAction: 'pan-y', // Critical: Allows vertical scrolling on mobile
+        touchAction: 'pan-y', 
         position: 'relative' as const,
     };
 
@@ -65,7 +66,7 @@ const SortableFoodCardWrapper = ({ id, children, disabled, layoutMode }: any) =>
             style={style} 
             {...attributes} 
             {...listeners} 
-            layout // Enable Framer Motion layout animations
+            layout 
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ 
                 opacity: isDragging ? 0.3 : 1, 
@@ -87,7 +88,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
     onLayoutChange,
     initialScroll,
     onScrollSave,
-    allTags
+    allTags,
+    onRenameTag
 }) => {
   const [activeCategory, setActiveCategory] = useState("全部");
   const [isSelectionMode, setIsSelectionMode] = useState(false);
@@ -98,6 +100,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const [deleteConfirmType, setDeleteConfirmType] = useState<'cards' | 'tag_only' | 'tag_all' | null>(null);
   const [manageTag, setManageTag] = useState<string | null>(null);
   const [showMoveModal, setShowMoveModal] = useState(false);
+  
+  // Tag Renaming State
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -115,7 +121,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        delay: 400, // Increased delay to prioritize long-press select over dragging
+        delay: 400, 
         tolerance: 8, 
       },
     }),
@@ -124,7 +130,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
     })
   );
 
-  // Use props tags instead of calculating locally
   const categories = useMemo(() => {
     return ["全部", ...allTags.sort()];
   }, [allTags]);
@@ -207,7 +212,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       onEntriesUpdate(updated);
       
       if (manageTag) {
-          setManageTag(null);
+          closeManageModal();
           setActiveCategory("全部");
       } else {
           resetSelection();
@@ -225,6 +230,24 @@ export const HomeView: React.FC<HomeViewProps> = ({
       if (tag === "全部") return;
       if (navigator.vibrate) navigator.vibrate(50);
       setManageTag(tag);
+      setIsRenaming(false);
+      setRenameValue(tag);
+  };
+
+  const closeManageModal = () => {
+      setManageTag(null);
+      setIsRenaming(false);
+      setRenameValue("");
+  };
+
+  const executeRename = () => {
+      if (manageTag && renameValue.trim() && renameValue !== manageTag) {
+          onRenameTag(manageTag, renameValue.trim());
+          if (activeCategory === manageTag) {
+              setActiveCategory(renameValue.trim());
+          }
+      }
+      closeManageModal();
   };
 
   const executeDeleteTagOnly = () => {
@@ -234,7 +257,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           tags: e.tags.filter(t => t !== manageTag)
       }));
       onEntriesUpdate(updated);
-      setManageTag(null);
+      closeManageModal();
       setDeleteConfirmType(null);
       setActiveCategory("全部");
   };
@@ -243,7 +266,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       if (!manageTag) return;
       const updated = entries.filter(e => !e.tags.includes(manageTag));
       onEntriesUpdate(updated);
-      setManageTag(null);
+      closeManageModal();
       setDeleteConfirmType(null);
       setActiveCategory("全部");
   };
@@ -324,7 +347,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </AnimatePresence>
         </div>
 
-        {/* Sticky Floating Glass Category Bar - Enhanced Scroll */}
+        {/* Sticky Floating Glass Category Bar */}
         <div className="sticky top-4 z-40 mb-6">
             <AnimatePresence>
                 {!isSelectionMode && (
@@ -336,7 +359,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     >
                         {/* Glass Container */}
                         <div className="bg-white/70 backdrop-blur-xl border border-white/40 shadow-xl shadow-stone-200/40 rounded-full py-1.5 px-2 relative overflow-hidden flex">
-                             {/* Scrollable Area - Removed restrictive max-widths and ensured overflow handling */}
                              <div className="flex-1 overflow-x-auto no-scrollbar relative w-full touch-pan-x">
                                 <div className="flex gap-1.5 px-1 items-center w-max">
                                     {categories.map((cat) => (
@@ -352,7 +374,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
                                                 active={activeCategory === cat} 
                                                 onClick={() => setActiveCategory(cat)}
                                                 onLongPress={() => handleTagLongPress(cat)}
-                                                // Override styles for the glass bar
                                                 className={`!py-1.5 !px-4 !text-[10px] ${activeCategory === cat ? '!shadow-none !bg-stone-800 !text-white' : '!bg-transparent !border-transparent !text-stone-500 hover:!bg-stone-100/50'}`}
                                             />
                                         </motion.div>
@@ -361,7 +382,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
                                 </div>
                              </div>
                              
-                             {/* Fade Gradients for visual cue */}
                              <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-white/80 to-transparent pointer-events-none rounded-l-full z-10" />
                              <div className="absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-white/80 to-transparent pointer-events-none rounded-r-full z-10" />
                         </div>
@@ -436,7 +456,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 <motion.div 
                     initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                     className="fixed inset-0 z-[60] flex items-center justify-center bg-black/10 backdrop-blur-[2px]"
-                    onClick={() => setManageTag(null)}
+                    onClick={closeManageModal}
                 >
                     <motion.div 
                         initial={{ scale: 0.9, y: 10 }} 
@@ -445,15 +465,33 @@ export const HomeView: React.FC<HomeViewProps> = ({
                         onClick={e => e.stopPropagation()}
                         className="bg-white/90 backdrop-blur-xl rounded-full p-2 pr-4 shadow-2xl flex items-center gap-4 border border-white/50"
                     >
-                         <div className="flex items-center gap-2 pl-4 pr-3 border-r border-stone-200">
-                             <Tag size={14} className="text-stone-400" />
-                             <span className="text-sm font-semibold text-stone-700 tracking-wide">{manageTag}</span>
-                         </div>
-                         <div className="flex items-center gap-3">
-                             <button onClick={() => setShowMoveModal(true)} className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-100 text-stone-600 hover:bg-stone-800 hover:text-white transition-all"><ArrowRightLeft size={16} /></button>
-                             <button onClick={() => setDeleteConfirmType('tag_only')} className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-100 text-stone-600 hover:bg-amber-100 hover:text-amber-600 transition-all"><X size={16} /></button>
-                             <button onClick={() => setDeleteConfirmType('tag_all')} className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-100 text-stone-600 hover:bg-red-100 hover:text-red-500 transition-all"><Trash2 size={16} /></button>
-                         </div>
+                         {isRenaming ? (
+                             <div className="flex items-center gap-2 pl-2">
+                                 <input 
+                                    autoFocus
+                                    type="text" 
+                                    value={renameValue}
+                                    onChange={(e) => setRenameValue(e.target.value)}
+                                    className="bg-stone-100 rounded-full px-3 py-1.5 text-sm text-stone-800 focus:outline-none w-32"
+                                    placeholder="新标签名"
+                                 />
+                                 <button onClick={executeRename} className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-800 text-white hover:scale-105 transition-all"><Check size={16} /></button>
+                                 <button onClick={() => setIsRenaming(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-100 text-stone-500 hover:bg-stone-200 transition-all"><X size={16} /></button>
+                             </div>
+                         ) : (
+                             <>
+                                <div className="flex items-center gap-2 pl-4 pr-3 border-r border-stone-200">
+                                    <Tag size={14} className="text-stone-400" />
+                                    <span className="text-sm font-semibold text-stone-700 tracking-wide">{manageTag}</span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <button onClick={() => setIsRenaming(true)} className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-100 text-stone-600 hover:bg-stone-800 hover:text-white transition-all"><Edit2 size={14} /></button>
+                                    <button onClick={() => setShowMoveModal(true)} className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-100 text-stone-600 hover:bg-stone-800 hover:text-white transition-all"><ArrowRightLeft size={16} /></button>
+                                    <button onClick={() => setDeleteConfirmType('tag_only')} className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-100 text-stone-600 hover:bg-amber-100 hover:text-amber-600 transition-all"><X size={16} /></button>
+                                    <button onClick={() => setDeleteConfirmType('tag_all')} className="w-8 h-8 flex items-center justify-center rounded-full bg-stone-100 text-stone-600 hover:bg-red-100 hover:text-red-500 transition-all"><Trash2 size={16} /></button>
+                                </div>
+                             </>
+                         )}
                     </motion.div>
                 </motion.div>
             )}

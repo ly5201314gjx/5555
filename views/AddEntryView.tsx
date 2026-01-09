@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Tag, Plus, Save, Star, ArrowLeft, X, Check, ImagePlus } from 'lucide-react';
+import { Camera, Tag, Plus, Save, Star, ArrowLeft, X, Check, ImagePlus, Trash2 } from 'lucide-react';
 import { MiniCapsule } from '../components/MiniCapsule';
 import { LocationPicker } from '../components/LocationPicker';
 import { WeatherWidget } from '../components/WeatherWidget';
@@ -24,6 +24,11 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
   const [images, setImages] = useState<string[]>([]);
   const [coverIndex, setCoverIndex] = useState(0);
 
+  // Image Selection (Batch Delete)
+  const [isImageSelectionMode, setIsImageSelectionMode] = useState(false);
+  const [selectedImageIndices, setSelectedImageIndices] = useState<Set<number>>(new Set());
+  const imageTimerRef = useRef<{ [key: number]: number }>({});
+
   // Tags
   const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -34,8 +39,7 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
   
   // Initialize Data
   useEffect(() => {
-    // Merge global tags with any unique ones here if needed, 
-    // but mostly rely on globalTags for the options.
+    // Sync with global tags
     setAvailableTags(globalTags);
 
     if (initialEntry) {
@@ -101,7 +105,6 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
                     let width = img.width;
                     let height = img.height;
                     
-                    // Increased max size for better clarity (2.5K resolution)
                     const MAX_SIZE = 2560; 
 
                     if (width > height) {
@@ -121,7 +124,6 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
                     const ctx = canvas.getContext('2d');
                     if (ctx) {
                         ctx.drawImage(img, 0, 0, width, height);
-                        // Increased quality to 0.95 for high fidelity
                         const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.95);
                         setImages(prev => [...prev, compressedDataUrl]);
                     }
@@ -133,19 +135,82 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
             reader.readAsDataURL(file);
         });
     }
-    // Reset input
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const removeImage = (index: number) => {
-      const newImages = images.filter((_, i) => i !== index);
-      setImages(newImages);
-      if (coverIndex === index) {
-          setCoverIndex(0);
-      } else if (coverIndex > index) {
-          setCoverIndex(coverIndex - 1);
+  // --- Image Selection Logic ---
+  
+  const handleImageLongPress = (index: number) => {
+      // Trigger selection mode
+      if (!isImageSelectionMode) {
+          setIsImageSelectionMode(true);
+          setSelectedImageIndices(new Set([index]));
+          if (navigator.vibrate) navigator.vibrate(50);
       }
   };
+
+  const handleImagePointerDown = (index: number) => {
+      if (!isImageSelectionMode) {
+          imageTimerRef.current[index] = window.setTimeout(() => handleImageLongPress(index), 400);
+      }
+  };
+
+  const handleImagePointerUp = (index: number) => {
+      if (imageTimerRef.current[index]) {
+          clearTimeout(imageTimerRef.current[index]);
+          delete imageTimerRef.current[index];
+      }
+  };
+
+  const handleImageClick = (index: number) => {
+      if (isImageSelectionMode) {
+          const newSet = new Set(selectedImageIndices);
+          if (newSet.has(index)) {
+              newSet.delete(index);
+              if (newSet.size === 0) {
+                  // Optional: Exit mode if nothing selected? Let's keep mode active for UX consistency
+              }
+          } else {
+              newSet.add(index);
+          }
+          setSelectedImageIndices(newSet);
+      }
+  };
+
+  const cancelImageSelection = () => {
+      setIsImageSelectionMode(false);
+      setSelectedImageIndices(new Set());
+  };
+
+  const deleteSelectedImages = () => {
+      const indicesToDelete = (Array.from(selectedImageIndices) as number[]).sort((a, b) => b - a); // Descending order
+      let newImages = [...images];
+      
+      indicesToDelete.forEach(idx => {
+          newImages.splice(idx, 1);
+      });
+
+      setImages(newImages);
+      
+      // Reset cover index logic
+      // If cover was deleted or shifted, default to 0
+      if (selectedImageIndices.has(coverIndex) || coverIndex >= newImages.length) {
+          setCoverIndex(0);
+      } else {
+          // Calculate shift
+          let shift = 0;
+          indicesToDelete.forEach(idx => {
+              if (idx < coverIndex) shift++;
+          });
+          setCoverIndex(coverIndex - shift);
+      }
+
+      setIsImageSelectionMode(false);
+      setSelectedImageIndices(new Set());
+  };
+
+  // --- End Image Selection Logic ---
+
 
   const handleSave = () => {
       if (!title) {
@@ -190,33 +255,56 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
         </div>
 
         {/* Photo Upload Area - Scrollable Horizontal List if multiple */}
-        <div className="mb-8">
-            <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
-                {images.map((img, idx) => (
-                    <div key={idx} className="relative flex-shrink-0 w-40 h-52 rounded-2xl overflow-hidden group border border-stone-100 shadow-sm">
-                        <img src={img} className="w-full h-full object-cover" alt={`Upload ${idx}`} />
-                        
-                        {/* Remove Button */}
-                        <button 
-                            onClick={() => removeImage(idx)}
-                            className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+        <div className="mb-8 relative">
+            {isImageSelectionMode && (
+                <div className="absolute -top-8 right-0 flex items-center gap-2">
+                     <span className="text-xs text-stone-500 font-medium">已选 {selectedImageIndices.size} 张</span>
+                </div>
+            )}
+            
+            <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 pt-2">
+                {images.map((img, idx) => {
+                    const isSelected = selectedImageIndices.has(idx);
+                    
+                    return (
+                        <motion.div 
+                            key={idx} 
+                            layout
+                            className={`relative flex-shrink-0 w-40 h-52 rounded-2xl overflow-hidden group border transition-all duration-300 ${
+                                isImageSelectionMode 
+                                    ? (isSelected ? 'border-amber-500 ring-2 ring-amber-500 ring-offset-2 scale-95' : 'border-stone-200 opacity-60 scale-90') 
+                                    : 'border-stone-100 shadow-sm'
+                            }`}
+                            onPointerDown={() => handleImagePointerDown(idx)}
+                            onPointerUp={() => handleImagePointerUp(idx)}
+                            onPointerLeave={() => handleImagePointerUp(idx)}
+                            onClick={() => handleImageClick(idx)}
                         >
-                            <X size={12} />
-                        </button>
+                            <img src={img} className="w-full h-full object-cover" alt={`Upload ${idx}`} />
+                            
+                            {/* Selection Checkbox Overlay */}
+                            {isImageSelectionMode ? (
+                                <div className={`absolute top-3 right-3 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-amber-500 border-amber-500' : 'bg-black/20 border-white'}`}>
+                                    {isSelected && <Check size={14} className="text-white" strokeWidth={3} />}
+                                </div>
+                            ) : (
+                                <>
+                                    {/* Normal Mode Overlays */}
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); setCoverIndex(idx); }}
+                                        className={`absolute bottom-2 right-2 px-2 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 backdrop-blur-md transition-colors ${coverIndex === idx ? 'bg-amber-400 text-white shadow-sm' : 'bg-black/30 text-white/70 hover:bg-black/50'}`}
+                                    >
+                                        {coverIndex === idx ? <Star size={10} fill="currentColor" /> : null}
+                                        <span>{coverIndex === idx ? '封面' : '设为封面'}</span>
+                                    </button>
+                                </>
+                            )}
+                        </motion.div>
+                    );
+                })}
 
-                        {/* Cover Indicator/Selector */}
-                        <button 
-                            onClick={() => setCoverIndex(idx)}
-                            className={`absolute bottom-2 right-2 px-2 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 backdrop-blur-md transition-colors ${coverIndex === idx ? 'bg-amber-400 text-white shadow-sm' : 'bg-black/30 text-white/70 hover:bg-black/50'}`}
-                        >
-                            {coverIndex === idx ? <Star size={10} fill="currentColor" /> : null}
-                            <span>{coverIndex === idx ? '封面' : '设为封面'}</span>
-                        </button>
-                    </div>
-                ))}
-
-                {/* Add Button */}
-                {images.length < 99 && (
+                {/* Add Button - Hidden in selection mode */}
+                {!isImageSelectionMode && images.length < 99 && (
                     <div 
                         onClick={() => fileInputRef.current?.click()}
                         className="flex-shrink-0 w-40 h-52 bg-white/40 backdrop-blur-sm rounded-2xl border border-dashed border-stone-300 flex flex-col items-center justify-center cursor-pointer hover:bg-stone-50 hover:border-stone-400 transition-all text-stone-400"
@@ -243,7 +331,7 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
         </div>
 
         {/* Form Inputs */}
-        <div className="space-y-6">
+        <div className={`space-y-6 transition-opacity duration-300 ${isImageSelectionMode ? 'opacity-30 pointer-events-none' : 'opacity-100'}`}>
             <div className="group relative">
                 <label className="block text-[10px] font-medium text-stone-400 tracking-widest uppercase mb-2 ml-4">主题</label>
                 <input 
@@ -330,15 +418,47 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
             </div>
         </div>
 
-        {/* Refined Save Button */}
+        {/* Action Bar (Save or Delete) */}
         <div className="fixed bottom-8 left-0 right-0 flex justify-center z-40 pointer-events-none">
-            <button 
-                onClick={handleSave}
-                className="pointer-events-auto bg-stone-800 text-stone-50 px-8 py-3 rounded-full shadow-lg shadow-stone-300/50 flex items-center gap-3 hover:bg-stone-900 active:scale-95 transition-all duration-300"
-            >
-                <Save size={18} strokeWidth={2} />
-                <span className="text-sm font-medium tracking-widest">保存记录</span>
-            </button>
+            <AnimatePresence mode="wait">
+                {isImageSelectionMode ? (
+                    <motion.div
+                        key="delete-action"
+                        initial={{ y: 50, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: 50, opacity: 0 }}
+                        className="pointer-events-auto bg-white/90 backdrop-blur-xl border border-white/50 shadow-2xl shadow-red-200/30 rounded-full p-2 flex items-center gap-2"
+                    >
+                        <button 
+                            onClick={cancelImageSelection}
+                            className="px-6 py-2.5 rounded-full text-stone-500 text-xs font-medium hover:bg-stone-100 transition-colors"
+                        >
+                            取消
+                        </button>
+                        {selectedImageIndices.size > 0 && (
+                            <button 
+                                onClick={deleteSelectedImages}
+                                className="bg-red-500 text-white px-6 py-2.5 rounded-full shadow-lg shadow-red-200 flex items-center gap-2 hover:bg-red-600 active:scale-95 transition-all"
+                            >
+                                <Trash2 size={16} />
+                                <span className="text-xs font-medium tracking-widest">删除 ({selectedImageIndices.size})</span>
+                            </button>
+                        )}
+                    </motion.div>
+                ) : (
+                    <motion.button 
+                        key="save-action"
+                        initial={{ y: 50, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: 50, opacity: 0 }}
+                        onClick={handleSave}
+                        className="pointer-events-auto bg-stone-800 text-stone-50 px-8 py-3 rounded-full shadow-lg shadow-stone-300/50 flex items-center gap-3 hover:bg-stone-900 active:scale-95 transition-all duration-300"
+                    >
+                        <Save size={18} strokeWidth={2} />
+                        <span className="text-sm font-medium tracking-widest">保存记录</span>
+                    </motion.button>
+                )}
+            </AnimatePresence>
         </div>
 
       </motion.div>
