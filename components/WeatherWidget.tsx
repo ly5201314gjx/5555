@@ -33,7 +33,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({ value, onChange })
         try {
           const { latitude, longitude } = position.coords;
           
-          // 1. Get Location Name
+          // 1. Get Location Name with ZH preference
           let locationName = '';
           try {
              const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&accept-language=zh-CN`);
@@ -44,18 +44,22 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({ value, onChange })
           }
 
           // 2. Get Weather
+          // Using Open-Meteo which is generally reliable globally.
           const res = await fetch(
-            `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true`
+            `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true&timezone=auto`
           );
           const data = await res.json();
           const { temperature, weathercode } = data.current_weather;
           
+          // Refined WMO Code Mapping
           let mappedCode = 0;
-          if (weathercode >= 1 && weathercode <= 3) mappedCode = 1;
-          else if (weathercode >= 45 && weathercode <= 48) mappedCode = 3;
-          else if (weathercode >= 51 && weathercode <= 67) mappedCode = 61;
-          else if (weathercode >= 71 && weathercode <= 86) mappedCode = 71;
-          else if (weathercode >= 95) mappedCode = 95;
+          if (weathercode === 0) mappedCode = 0; // Clear
+          else if (weathercode >= 1 && weathercode <= 3) mappedCode = 1; // Cloudy/Partly
+          else if (weathercode >= 45 && weathercode <= 48) mappedCode = 3; // Fog
+          else if (weathercode >= 51 && weathercode <= 67) mappedCode = 61; // Rain
+          else if (weathercode >= 71 && weathercode <= 86) mappedCode = 71; // Snow
+          else if (weathercode >= 95) mappedCode = 95; // Thunderstorm
+          else mappedCode = 1; // Default to Cloudy
 
           const type = WEATHER_TYPES.find(t => t.code === mappedCode) || WEATHER_TYPES[0];
 
@@ -75,11 +79,12 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({ value, onChange })
 
     const error = () => {
         setLoading(false);
-        alert("无法获取位置或超时");
+        alert("无法获取位置，请手动选择");
     };
 
     navigator.geolocation.getCurrentPosition(success, error, {
-        timeout: 5000,
+        enableHighAccuracy: false,
+        timeout: 15000,
         maximumAge: 0
     });
   };

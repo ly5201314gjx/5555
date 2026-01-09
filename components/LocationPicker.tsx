@@ -21,9 +21,9 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
       if (searchTerm.length > 1) {
         setIsSearching(true);
         try {
-            // Prioritize China (zh-CN)
+            // Prioritize China (zh-CN) via countrycodes and language
             const response = await fetch(
-                `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchTerm)}&format=json&addressdetails=1&limit=8&accept-language=zh-CN&countrycodes=cn`
+                `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchTerm)}&format=json&addressdetails=1&limit=10&accept-language=zh-CN`
             );
             const data = await response.json();
             setSearchResults(data);
@@ -81,13 +81,14 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
     const error = (err: GeolocationPositionError) => {
         console.error(err);
         setIsLocating(false);
-        alert("无法获取位置，可能是权限不足或未开启 HTTPS");
+        // Fallback: Notify user to manually search if GPS fails (common in China without HTTPS/VPN)
+        alert("定位超时或失败，请尝试直接搜索地点名称。");
     };
 
-    // Add 5s timeout
+    // Extended timeout to 15s for domestic networks
     navigator.geolocation.getCurrentPosition(success, error, {
-        enableHighAccuracy: true,
-        timeout: 5000,
+        enableHighAccuracy: false, // Set false for faster response in some cases
+        timeout: 15000,
         maximumAge: 0
     });
   };
@@ -145,7 +146,7 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
                             type="text"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            placeholder="搜索地点 (优先国内数据)..."
+                            placeholder="搜索国内地点 (如：上海 外滩)..."
                             className="w-full bg-stone-100 rounded-full pl-10 pr-10 py-2.5 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-200 transition-all"
                         />
                         <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
@@ -224,7 +225,7 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
                              {searchResults.length === 0 && !isSearching && (
                                  <div className="text-center py-10 text-stone-300">
                                      <p className="text-xs tracking-widest mb-2">输入关键字搜索地点</p>
-                                     <p className="text-[10px] text-stone-200">支持商铺、地标、街道</p>
+                                     <p className="text-[10px] text-stone-200">如果自动定位失败，请手动搜索</p>
                                  </div>
                              )}
                         </div>

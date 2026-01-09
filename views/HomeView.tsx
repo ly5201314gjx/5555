@@ -322,7 +322,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </AnimatePresence>
         </div>
 
-        {/* Sticky Floating Glass Category Bar */}
+        {/* Sticky Floating Glass Category Bar - Enhanced Scroll */}
         <div className="sticky top-4 z-40 mb-6">
             <AnimatePresence>
                 {!isSelectionMode && (
@@ -330,13 +330,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
                         initial={{ opacity: 0, y: -20 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -20, height: 0 }}
-                        className="mx-auto max-w-[95%]"
+                        className="w-full"
                     >
                         {/* Glass Container */}
-                        <div className="bg-white/70 backdrop-blur-xl border border-white/40 shadow-xl shadow-stone-200/40 rounded-full py-1.5 px-2 flex items-center relative overflow-hidden">
-                             {/* Scrollable Area */}
-                             <div className="overflow-x-auto no-scrollbar flex items-center w-full relative">
-                                <div className="flex gap-1.5 px-1 items-center flex-nowrap min-w-full">
+                        <div className="bg-white/70 backdrop-blur-xl border border-white/40 shadow-xl shadow-stone-200/40 rounded-full py-1.5 px-2 relative overflow-hidden flex">
+                             {/* Scrollable Area - Removed restrictive max-widths and ensured overflow handling */}
+                             <div className="flex-1 overflow-x-auto no-scrollbar relative w-full touch-pan-x">
+                                <div className="flex gap-1.5 px-1 items-center w-max">
                                     {categories.map((cat) => (
                                         <motion.div 
                                             key={cat} 
@@ -355,13 +355,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
                                             />
                                         </motion.div>
                                     ))}
-                                    <div className="w-1 flex-shrink-0" />
+                                    <div className="w-2 flex-shrink-0" />
                                 </div>
                              </div>
                              
                              {/* Fade Gradients for visual cue */}
-                             <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-white/60 to-transparent pointer-events-none rounded-l-full" />
-                             <div className="absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-white/60 to-transparent pointer-events-none rounded-r-full" />
+                             <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-white/80 to-transparent pointer-events-none rounded-l-full z-10" />
+                             <div className="absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-white/80 to-transparent pointer-events-none rounded-r-full z-10" />
                         </div>
                     </motion.div>
                 )}

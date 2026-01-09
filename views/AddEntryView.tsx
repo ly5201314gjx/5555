@@ -80,14 +80,14 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (images.length >= 9) {
-        alert("最多只能上传 9 张图片");
+    if (images.length >= 99) {
+        alert("最多只能上传 99 张图片");
         return;
     }
 
     const files = e.target.files;
     if (files && files.length > 0) {
-        const remainingSlots = 9 - images.length;
+        const remainingSlots = 99 - images.length;
         const filesToProcess = Array.from(files).slice(0, remainingSlots);
 
         filesToProcess.forEach((file: File) => {
@@ -100,7 +100,9 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
                     const canvas = document.createElement('canvas');
                     let width = img.width;
                     let height = img.height;
-                    const MAX_SIZE = 1000; 
+                    
+                    // Increased max size for better clarity (2.5K resolution)
+                    const MAX_SIZE = 2560; 
 
                     if (width > height) {
                         if (width > MAX_SIZE) {
@@ -119,7 +121,8 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
                     const ctx = canvas.getContext('2d');
                     if (ctx) {
                         ctx.drawImage(img, 0, 0, width, height);
-                        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                        // Increased quality to 0.95 for high fidelity
+                        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.95);
                         setImages(prev => [...prev, compressedDataUrl]);
                     }
                 };
@@ -213,7 +216,7 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
                 ))}
 
                 {/* Add Button */}
-                {images.length < 9 && (
+                {images.length < 99 && (
                     <div 
                         onClick={() => fileInputRef.current?.click()}
                         className="flex-shrink-0 w-40 h-52 bg-white/40 backdrop-blur-sm rounded-2xl border border-dashed border-stone-300 flex flex-col items-center justify-center cursor-pointer hover:bg-stone-50 hover:border-stone-400 transition-all text-stone-400"
@@ -230,7 +233,7 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
                              <ImagePlus size={20} />
                          </div>
                          <span className="text-xs">添加图片</span>
-                         <span className="text-[9px] mt-1 text-stone-300">{images.length}/9</span>
+                         <span className="text-[9px] mt-1 text-stone-300">{images.length}/99</span>
                     </div>
                 )}
             </div>
