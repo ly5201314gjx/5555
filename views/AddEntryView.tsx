@@ -436,8 +436,8 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
             </div>
         </div>
 
-        {/* Action Bar (Save or Delete) */}
-        <div className="fixed bottom-8 left-0 right-0 flex justify-center z-40 pointer-events-none">
+        {/* Action Bar (Save or Delete) - New Mini Capsule Design */}
+        <div className="fixed bottom-6 left-0 right-0 flex justify-center z-40 pointer-events-none">
             <AnimatePresence mode="wait">
                 {isImageSelectionMode ? (
                     <motion.div
@@ -445,21 +445,21 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
                         initial={{ y: 50, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
                         exit={{ y: 50, opacity: 0 }}
-                        className="pointer-events-auto bg-white/90 backdrop-blur-xl border border-white/50 shadow-2xl shadow-red-200/30 rounded-full p-2 flex items-center gap-2"
+                        className="pointer-events-auto bg-white/90 backdrop-blur-xl border border-white/50 shadow-2xl shadow-red-200/30 rounded-full p-1.5 flex items-center gap-1.5"
                     >
                         <button 
                             onClick={cancelImageSelection}
-                            className="px-6 py-2.5 rounded-full text-stone-500 text-xs font-medium hover:bg-stone-100 transition-colors"
+                            className="px-4 py-2 rounded-full text-stone-500 text-[10px] font-medium hover:bg-stone-100 transition-colors"
                         >
                             取消
                         </button>
                         {selectedImageIndices.size > 0 && (
                             <button 
                                 onClick={deleteSelectedImages}
-                                className="bg-red-500 text-white px-6 py-2.5 rounded-full shadow-lg shadow-red-200 flex items-center gap-2 hover:bg-red-600 active:scale-95 transition-all"
+                                className="bg-red-500 text-white px-4 py-2 rounded-full shadow-lg shadow-red-200 flex items-center gap-1.5 hover:bg-red-600 active:scale-95 transition-all"
                             >
-                                <Trash2 size={16} />
-                                <span className="text-xs font-medium tracking-widest">删除 ({selectedImageIndices.size})</span>
+                                <Trash2 size={12} />
+                                <span className="text-[10px] font-medium tracking-widest">删除 ({selectedImageIndices.size})</span>
                             </button>
                         )}
                     </motion.div>
@@ -471,14 +471,19 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
                         exit={{ y: 50, opacity: 0 }}
                         onClick={handleSave}
                         disabled={isSaving}
-                        className={`pointer-events-auto px-8 py-3 rounded-full shadow-lg flex items-center gap-3 transition-all duration-300 ${
+                        // Refined Design: Mini Capsule, Dark Stone color for elegance
+                        className={`pointer-events-auto px-6 py-2 rounded-full shadow-xl flex items-center gap-2 transition-all duration-300 ${
                             isSaving 
                                 ? 'bg-stone-300 text-stone-500 cursor-not-allowed' 
-                                : 'bg-stone-800 text-stone-50 hover:bg-stone-900 active:scale-95 shadow-stone-300/50'
+                                : 'bg-stone-900 text-stone-50 hover:bg-black active:scale-95 shadow-stone-400/50'
                         }`}
                     >
-                        <Save size={18} strokeWidth={2} />
-                        <span className="text-sm font-medium tracking-widest">{isSaving ? '保存中...' : '保存记录'}</span>
+                        {isSaving ? (
+                             <div className="w-3 h-3 border-2 border-stone-400 border-t-stone-600 rounded-full animate-spin" />
+                        ) : (
+                             <Save size={14} strokeWidth={2.5} />
+                        )}
+                        <span className="text-xs font-bold tracking-widest">{isSaving ? '保存中' : '保存'}</span>
                     </motion.button>
                 )}
             </AnimatePresence>

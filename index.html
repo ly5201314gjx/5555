@@ -42,13 +42,15 @@
         display: none !important;
       }
     </style>
+    
+    <!-- AMap Security Config MUST be before the script loader -->
     <script type="text/javascript">
       window._AMapSecurityConfig = {
-        securityJsCode: '', // 如果您有安全密钥（Web服务），请在此填写。纯前端开发有时不填会报警告但能运行，生产环境建议配置代理。
+        securityJsCode: '', // 纯前端开发若无 Web服务 密钥，留空即可。生产环境建议配置代理。
       };
     </script>
-    <!-- Load AMap JS API with the provided key -->
-    <script type="text/javascript" src="https://webapi.amap.com/maps?v=2.0&key=b8ff91fd63240ee26634243a835ebdef&plugin=AMap.PlaceSearch,AMap.AutoComplete,AMap.Geolocation,AMap.Weather,AMap.Geocoder"></script>
+    <!-- Load AMap JS API with key b8ff91fd63240ee26634243a835ebdef -->
+    <script type="text/javascript" src="https://webapi.amap.com/maps?v=2.0&key=b8ff91fd63240ee26634243a835ebdef&plugin=AMap.PlaceSearch,AMap.AutoComplete,AMap.Geolocation,AMap.Weather,AMap.Geocoder,AMap.ToolBar"></script>
   <script type="importmap">
 {
   "imports": {

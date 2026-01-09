@@ -28,52 +28,62 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
 
   // Initialize AMap when modal opens
   useEffect(() => {
-    if (isOpen && !mapInstanceRef.current && window.AMap) {
-        // Delay slightly to ensure DOM is ready
-        setTimeout(() => {
-            if (mapContainerRef.current) {
-                mapInstanceRef.current = new window.AMap.Map(mapContainerRef.current, {
-                    zoom: 15,
-                    resizeEnable: true,
-                    mapStyle: "amap://styles/whitesmoke" // Clean style
-                });
-
-                // Init Plugins
-                window.AMap.plugin(['AMap.PlaceSearch', 'AMap.Geolocation', 'AMap.Geocoder', 'AMap.AutoComplete'], function(){
-                    placeSearchRef.current = new window.AMap.PlaceSearch({
-                        pageSize: 5,
-                        pageIndex: 1,
-                        extensions: 'all'
+    if (isOpen && !mapInstanceRef.current) {
+        // Simple polling to ensure AMap is loaded
+        const initMap = () => {
+            if (window.AMap && mapContainerRef.current) {
+                try {
+                    mapInstanceRef.current = new window.AMap.Map(mapContainerRef.current, {
+                        zoom: 15,
+                        resizeEnable: true,
+                        mapStyle: "amap://styles/whitesmoke" // Clean style
                     });
-                    
-                    geocoderRef.current = new window.AMap.Geocoder({
-                        city: "010", 
-                        radius: 1000 
-                    });
-                });
 
-                // Click map to pick location
-                mapInstanceRef.current.on('click', (e: any) => {
-                    const { lng, lat } = e.lnglat;
-                    updateMarker(lng, lat);
-                    // Reverse Geocode
-                    if(geocoderRef.current) {
-                        geocoderRef.current.getAddress([lng, lat], function(status: string, result: any) {
-                            if (status === 'complete' && result.regeocode) {
-                                const address = result.regeocode.formattedAddress;
-                                // Try to get a POI
-                                const pois = result.regeocode.pois;
-                                let name = address;
-                                if(pois && pois.length > 0) {
-                                    name = pois[0].name;
-                                }
-                                setSearchTerm(name);
-                            }
+                    // Init Plugins
+                    window.AMap.plugin(['AMap.PlaceSearch', 'AMap.Geolocation', 'AMap.Geocoder', 'AMap.AutoComplete'], function(){
+                        placeSearchRef.current = new window.AMap.PlaceSearch({
+                            pageSize: 5,
+                            pageIndex: 1,
+                            extensions: 'all'
                         });
-                    }
-                });
+                        
+                        geocoderRef.current = new window.AMap.Geocoder({
+                            city: "010", 
+                            radius: 1000 
+                        });
+                    });
+
+                    // Click map to pick location
+                    mapInstanceRef.current.on('click', (e: any) => {
+                        const { lng, lat } = e.lnglat;
+                        updateMarker(lng, lat);
+                        // Reverse Geocode
+                        if(geocoderRef.current) {
+                            geocoderRef.current.getAddress([lng, lat], function(status: string, result: any) {
+                                if (status === 'complete' && result.regeocode) {
+                                    const address = result.regeocode.formattedAddress;
+                                    // Try to get a POI
+                                    const pois = result.regeocode.pois;
+                                    let name = address;
+                                    if(pois && pois.length > 0) {
+                                        name = pois[0].name;
+                                    }
+                                    setSearchTerm(name);
+                                }
+                            });
+                        }
+                    });
+                } catch (error) {
+                    console.error("Map Init Error:", error);
+                }
+            } else {
+               // Retry shortly if AMap not ready
+               setTimeout(initMap, 500);
             }
-        }, 100);
+        };
+        
+        // Small delay to ensure DOM is rendered by AnimatePresence
+        setTimeout(initMap, 100);
     }
   }, [isOpen]);
 
@@ -118,30 +128,31 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
         return;
     }
 
-    const geolocation = new window.AMap.Geolocation({
-        enableHighAccuracy: true,
-        timeout: 10000,
-    });
+    // Ensure Geolocation plugin is loaded
+    window.AMap.plugin('AMap.Geolocation', function() {
+        const geolocation = new window.AMap.Geolocation({
+            enableHighAccuracy: true,
+            timeout: 10000,
+        });
 
-    geolocation.getCurrentPosition((status: string, result: any) => {
-        setIsLocating(false);
-        if(status === 'complete'){
-            const { lng, lat } = result.position;
-            updateMarker(lng, lat);
-            // Format address
-            // result.formattedAddress, result.addressComponent
-            const name = result.formattedAddress || "我的位置";
-            // Make it shorter: District + POI
-            let shortName = name;
-            if(result.addressComponent) {
-                const { district, township, street } = result.addressComponent;
-                shortName = (district || "") + " · " + (street || township || "当前位置");
+        geolocation.getCurrentPosition(function(status: string, result: any){
+            setIsLocating(false);
+            if(status === 'complete'){
+                const { lng, lat } = result.position;
+                updateMarker(lng, lat);
+                // Format address
+                const name = result.formattedAddress || "我的位置";
+                let shortName = name;
+                if(result.addressComponent) {
+                    const { district, township, street } = result.addressComponent;
+                    shortName = (district || "") + " · " + (street || township || "当前位置");
+                }
+                setSearchTerm(shortName);
+            } else {
+                console.error(result);
+                alert("定位失败 (请确保使用HTTPS或本地环境)");
             }
-            setSearchTerm(shortName);
-        } else {
-            console.error(result);
-            alert("定位失败");
-        }
+        });
     });
   };
 
@@ -204,7 +215,7 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
                     exit={{ opacity: 0 }}
                     className="flex-1 relative overflow-hidden flex flex-col"
                 >
-                    {/* AMap Container */}
+                    {/* AMap Container - Explicit Height is crucial */}
                     <div className="h-[40vh] w-full bg-stone-200 relative">
                         <div ref={mapContainerRef} className="w-full h-full" />
                         

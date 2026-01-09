@@ -19,6 +19,7 @@ const WEATHER_TYPES = [
 
 // Helper to map AMap weather string to our code
 const mapAMapWeatherToCode = (weather: string): number => {
+    if(!weather) return 1;
     if(weather.includes('晴')) return 0;
     if(weather.includes('多云')) return 1;
     if(weather.includes('阴')) return 3;
@@ -71,56 +72,52 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({ value, onChange })
     }
 
     if (!window.AMap) {
-        alert("地图服务初始化中，请稍后再试");
+        alert("地图服务加载中，请稍后...");
         setLoading(false);
         return;
     }
 
-    window.AMap.plugin('AMap.Weather', function() {
-        // Create Weather Instance
-        const weather = new window.AMap.Weather();
-        
-        // Use Adcode or City. 
-        // We first need to know where we are. Using AMap.Geolocation first.
-        window.AMap.plugin('AMap.Geolocation', function() {
-            const geolocation = new window.AMap.Geolocation({
-                enableHighAccuracy: true,
-                timeout: 5000,
-            });
+    window.AMap.plugin(['AMap.Weather', 'AMap.Geolocation'], function() {
+        // Use AMap.Geolocation first to get adcode
+        const geolocation = new window.AMap.Geolocation({
+            enableHighAccuracy: true,
+            timeout: 5000,
+        });
 
-            geolocation.getCurrentPosition(function(status: string, result: any){
-                if(status === 'complete'){
-                    // Get Adcode (District code) for accurate weather
-                    const adcode = result.addressComponent.adcode;
-                    const district = result.addressComponent.district;
-
-                    weather.getLive(adcode, function(err: any, data: any) {
-                        setLoading(false);
-                        if (!err) {
-                            const code = mapAMapWeatherToCode(data.weather);
-                            const newWeather = {
-                                temperature: parseInt(data.temperature),
-                                code: code,
-                                condition: data.weather,
-                                locationName: district || data.city
-                            };
-
-                            localStorage.setItem(CACHE_KEY, JSON.stringify({
-                                timestamp: Date.now(),
-                                data: newWeather
-                            }));
-                            
-                            onChange(newWeather);
-                        } else {
-                            console.error(err);
-                            alert("天气查询失败");
-                        }
-                    });
-                } else {
+        geolocation.getCurrentPosition(function(status: string, result: any){
+            if(status === 'complete'){
+                // Get Adcode (District code) for accurate weather
+                const adcode = result.addressComponent.adcode;
+                const district = result.addressComponent.district;
+                
+                const weather = new window.AMap.Weather();
+                weather.getLive(adcode, function(err: any, data: any) {
                     setLoading(false);
-                    alert("定位失败，无法获取天气");
-                }
-            });
+                    if (!err && data.weather) {
+                        const code = mapAMapWeatherToCode(data.weather);
+                        const newWeather = {
+                            temperature: parseInt(data.temperature),
+                            code: code,
+                            condition: data.weather,
+                            locationName: district || data.city
+                        };
+
+                        localStorage.setItem(CACHE_KEY, JSON.stringify({
+                            timestamp: Date.now(),
+                            data: newWeather
+                        }));
+                        
+                        onChange(newWeather);
+                    } else {
+                        console.error(err);
+                        alert("天气查询失败");
+                    }
+                });
+            } else {
+                setLoading(false);
+                console.error(result);
+                alert("无法定位，请确保开启定位权限");
+            }
         });
     });
   };
