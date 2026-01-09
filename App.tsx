@@ -16,7 +16,7 @@ const INITIAL_ENTRIES: FoodEntry[] = [
     date: '10月12日',
     images: ['https://picsum.photos/id/431/800/1000', 'https://picsum.photos/id/432/800/1000'],
     coverImageIndex: 0,
-    tags: ['早餐', '甜点'],
+    tags: ['早餐', '漂亮饭'],
     rating: 4.8,
     description: '如云朵般蓬松的口感，散发着浓郁的抹茶香气。',
     weather: { temperature: 22, condition: '晴朗', code: 0, locationName: '京都' }
@@ -28,7 +28,7 @@ const INITIAL_ENTRIES: FoodEntry[] = [
     date: '10月10日',
     images: ['https://picsum.photos/id/1080/800/1000'],
     coverImageIndex: 0,
-    tags: ['早午餐', '有机'],
+    tags: ['早餐', '大吃特吃'],
     rating: 4.5,
     description: '本地采购的牛油果配上水波蛋和少许辣椒碎。',
     weather: { temperature: 18, condition: '多云', code: 1, locationName: '上海' }
@@ -40,26 +40,26 @@ const INITIAL_ENTRIES: FoodEntry[] = [
     date: '10月08日',
     images: ['https://picsum.photos/id/225/800/1000', 'https://picsum.photos/id/226/800/1000', 'https://picsum.photos/id/227/800/1000'],
     coverImageIndex: 0,
-    tags: ['晚餐', '日料'],
+    tags: ['大吃特吃'],
     rating: 5.0,
     description: '一场十二道时令鱼生的味觉之旅。',
     weather: { temperature: 15, condition: '下雨', code: 61, locationName: '东京' }
   },
   {
       id: '4',
-      title: '埃塞俄比亚手冲',
-      location: '蓝瓶咖啡',
+      title: '深夜关东煮',
+      location: '便利店',
       date: '10月05日',
       images: ['https://picsum.photos/id/1060/800/1000'],
       coverImageIndex: 0,
-      tags: ['咖啡', '午后'],
+      tags: ['超市', '小吃小喝'],
       rating: 4.2,
-      description: '带有蓝莓气息的花香调。',
-      weather: { temperature: 20, condition: '晴朗', code: 0, locationName: '旧金山' }
+      description: '温暖的萝卜和魔芋丝。',
+      weather: { temperature: 10, condition: '晴朗', code: 0, locationName: '北京' }
   }
 ];
 
-const DEFAULT_TAGS = ['早餐', '约会', '甜点', '健康', '微醺', '晚餐', '咖啡', '早午餐', '有机', '日料', '午后'];
+const DEFAULT_TAGS = ['早餐', '漂亮饭', '大吃特吃', '小吃小喝', '超市'];
 
 const ProfileView = () => (
   <div className="flex flex-col items-center justify-center h-screen text-stone-400 gap-4">
@@ -96,10 +96,8 @@ const App: React.FC = () => {
           const saved = localStorage.getItem('gourmet_tags');
           if (saved) return JSON.parse(saved);
           
-          // Fallback: Combine defaults with existing entry tags on first load
-          const initialTags = new Set(DEFAULT_TAGS);
-          INITIAL_ENTRIES.forEach(e => e.tags.forEach(t => initialTags.add(t)));
-          return Array.from(initialTags); // Do not sort initially to respect user order if possible
+          // Fallback: Use only the requested default tags initially
+          return DEFAULT_TAGS; 
       } catch(e) {
           return DEFAULT_TAGS;
       }
@@ -121,7 +119,6 @@ const App: React.FC = () => {
       if (!newTag.trim()) return;
       const tag = newTag.trim();
       if (!tags.includes(tag)) {
-          // Add to beginning or end? End is standard.
           setTags(prev => [...prev, tag]); 
       }
   };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, Navigation, Search, X, Loader2, Building2, Pencil, Map } from 'lucide-react';
 
@@ -21,9 +21,10 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
       if (searchTerm.length > 1) {
         setIsSearching(true);
         try {
-            // Prioritize China (zh-CN) via countrycodes and language
+            // Use OSM Nominatim which is free and works in China
+            // Limit to China region preference if possible, but general search works fine
             const response = await fetch(
-                `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchTerm)}&format=json&addressdetails=1&limit=10&accept-language=zh-CN`
+                `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchTerm)}&format=json&addressdetails=1&limit=5&accept-language=zh-CN`
             );
             const data = await response.json();
             setSearchResults(data);
@@ -58,21 +59,25 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
             const data = await response.json();
             
             const addr = data.address;
-            const placeName = addr.amenity || addr.shop || addr.building || addr.office || addr.tourism || addr.road || "我的位置";
-            const city = addr.city || addr.town || addr.district || "";
             
-            const formatted = `${city} · ${placeName}`;
+            // Priority: Specific Point -> Street -> District
+            const placeName = addr.amenity || addr.shop || addr.building || addr.tourism || addr.road || "我的位置";
+            const district = addr.district || addr.city || "";
+            
+            // Format: District · Place (e.g., 朝阳区 · 三里屯)
+            const formatted = district ? `${district} · ${placeName}` : placeName;
             
             setSearchTerm(formatted);
             setSearchResults([{
                 display_name: formatted,
                 isCurrent: true,
                 lat: latitude,
-                lon: longitude
+                lon: longitude,
+                address: addr
             }]);
         } catch (e) {
             console.error("Geocoding failed", e);
-            // Even if geocoding fails, we have coords, but for the UI we just show coords
+            // Fallback
             const simpleLoc = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
             setSearchTerm(simpleLoc);
         } finally {
@@ -83,26 +88,25 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
     const error = (err: GeolocationPositionError) => {
         console.error(err);
         setIsLocating(false);
-        // Fallback: Notify user to manually search if GPS fails
-        alert("定位超时或失败，请直接输入地点名称。");
+        alert("定位失败。请检查系统定位开关或浏览器权限。");
     };
 
-    // Extended timeout to 15s for domestic networks
     navigator.geolocation.getCurrentPosition(success, error, {
-        enableHighAccuracy: false, // Set false for faster response in some cases
-        timeout: 15000,
+        enableHighAccuracy: true,
+        timeout: 10000,
         maximumAge: 0
     });
   };
 
   const confirmLocation = (loc: string, lat?: string, lng?: string) => {
-      // Clean up the OSM display name for better aesthetics
+      // Clean up location string if it's too long (common with OSM results)
       let cleanLoc = loc;
-      // Only split if it looks like an address with commas (OSM style)
+      
+      // If user selected a search result that isn't already formatted by us
       if (loc.includes(',') && !loc.includes('·')) {
-          const parts = loc.split(',').map(s => s.trim());
-          // Simple heuristic to get the most relevant part (usually the first 2 parts for OSM)
-          cleanLoc = parts.slice(0, 2).join(' · ');
+          const parts = loc.split(',');
+          // Just take the first part (usually the specific place name)
+          cleanLoc = parts[0].trim();
       }
       
       onChange(cleanLoc);
@@ -120,7 +124,7 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
             type="text" 
             value={value}
             readOnly
-            placeholder="点击选择或输入地点..." 
+            placeholder="点击定位或输入地点..." 
             className="w-full bg-white/50 backdrop-blur-md border border-stone-200/50 rounded-2xl pl-11 pr-5 py-3 text-sm text-stone-700 placeholder-stone-400 focus:outline-none focus:bg-white/80 focus:border-stone-300 focus:shadow-sm transition-all duration-300 cursor-pointer"
         />
         <MapPin size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 group-hover:text-stone-600 transition-colors" />
@@ -149,7 +153,7 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
                             type="text"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            placeholder="自定义地点 或 搜索..."
+                            placeholder="搜索地点..."
                             className="w-full bg-stone-100 rounded-full pl-10 pr-10 py-2.5 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-200 transition-all"
                         />
                         <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
@@ -164,8 +168,8 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
                     exit={{ opacity: 0 }}
                     className="flex-1 relative overflow-hidden flex flex-col"
                 >
-                    {/* Map Area (Visual) */}
-                    <div className="h-[35vh] w-full bg-stone-200 relative">
+                    {/* Pseudo-Source Map (OpenStreetMap Iframe) */}
+                    <div className="h-[40vh] w-full bg-stone-200 relative">
                         {coords ? (
                             <iframe
                                 width="100%"
@@ -174,16 +178,15 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
                                 scrolling="no"
                                 marginHeight={0}
                                 marginWidth={0}
+                                // Simple OSM Embed
                                 src={`https://www.openstreetmap.org/export/embed.html?bbox=${coords.lng - 0.005}%2C${coords.lat - 0.005}%2C${coords.lng + 0.005}%2C${coords.lat + 0.005}&layer=mapnik&marker=${coords.lat}%2C${coords.lng}`}
-                                className="opacity-90"
+                                className="opacity-90 grayscale-[20%]"
                             ></iframe>
                         ) : (
                             <div className="absolute inset-0 flex items-center justify-center text-stone-400 bg-stone-100">
-                                <div className="flex flex-col items-center">
-                                    <div className="w-16 h-16 bg-stone-200 rounded-full flex items-center justify-center mb-3">
-                                        <Map size={32} className="opacity-30" />
-                                    </div>
-                                    <span className="text-xs tracking-widest uppercase">地图预览</span>
+                                <div className="flex flex-col items-center gap-2">
+                                    <Map size={32} className="opacity-30" />
+                                    <span className="text-xs tracking-widest uppercase">点击下方定位获取地图</span>
                                 </div>
                             </div>
                         )}
@@ -194,7 +197,7 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
                             className="absolute bottom-4 right-4 bg-white p-3 rounded-full shadow-lg text-stone-700 hover:text-stone-900 active:scale-95 transition-all z-20 flex items-center gap-2"
                         >
                             {isLocating ? <Loader2 size={20} className="animate-spin" /> : <Navigation size={20} className="fill-current text-blue-500" />}
-                            {isLocating && <span className="text-xs font-medium">定位</span>}
+                            <span className="text-xs font-medium">{isLocating ? '定位中...' : '定位'}</span>
                         </button>
                     </div>
 
@@ -203,7 +206,7 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
                         <div className="w-12 h-1 bg-stone-200 rounded-full mx-auto mb-6" />
                         
                         <div className="space-y-2 pb-10">
-                             {/* Manual Entry Option - Always show if there is text */}
+                             {/* Manual Entry Option */}
                              {searchTerm.trim().length > 0 && (
                                 <button 
                                     onClick={() => confirmLocation(searchTerm)}
@@ -215,9 +218,6 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
                                     <div className="flex-1 min-w-0">
                                         <div className="text-sm font-bold text-stone-800 line-clamp-1">
                                             使用 "{searchTerm}"
-                                        </div>
-                                        <div className="text-xs text-amber-600 mt-0.5">
-                                            直接使用当前输入作为地点名称
                                         </div>
                                     </div>
                                 </button>
@@ -247,8 +247,8 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
                              {/* Default Empty State */}
                              {searchResults.length === 0 && searchTerm.length === 0 && !isSearching && (
                                  <div className="text-center py-10 text-stone-300">
-                                     <p className="text-xs tracking-widest mb-2">输入关键字搜索或直接输入自定义地点</p>
-                                     <p className="text-[10px] text-stone-200">支持商铺、地标、街道</p>
+                                     <p className="text-xs tracking-widest mb-2">国内地图源 · 免Key定位</p>
+                                     <p className="text-[10px] text-stone-200">支持商铺、地标、街道搜索</p>
                                  </div>
                              )}
                         </div>
