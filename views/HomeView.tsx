@@ -132,7 +132,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   // Modals & States
   const [deleteConfirmType, setDeleteConfirmType] = useState<'cards' | 'tag_only' | 'tag_all' | null>(null);
   
-  // Tag Context Menu (Restored from Turn 2)
+  // Tag Context Menu
   const [manageTag, setManageTag] = useState<string | null>(null);
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
@@ -140,7 +140,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   // Sort Modal State
   const [isSortModalOpen, setIsSortModalOpen] = useState(false);
 
-  // Move Modal State (For selected cards)
+  // Move Modal State
   const [showMoveModal, setShowMoveModal] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -256,12 +256,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
       closeManageModal();
   };
 
-  // Delete Actions from Manage Modal
+  // Delete Actions
   const requestDeleteTag = (type: 'tag_only' | 'tag_all') => {
       setDeleteConfirmType(type);
   };
 
-  // Execution of Delete
   const executeDeleteConfirm = () => {
       if (!manageTag) return;
       
@@ -292,7 +291,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
       setDeleteConfirmType(null);
   };
 
-  // Move Logic
   const executeMoveCards = (targetTag: string) => {
       const updated = entries.map(e => {
           if (selectedIds.includes(e.id)) {
@@ -318,7 +316,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
     >
       <div className="pb-36 pt-safe-top px-4 max-w-2xl mx-auto min-h-screen">
         
-        {/* Header Row - Adjusted spacing */}
+        {/* Header Row */}
         <div className="flex items-center justify-between mb-3 pt-3 px-1">
             <AnimatePresence mode="wait">
                 {isSelectionMode ? (
@@ -371,8 +369,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </AnimatePresence>
         </div>
 
-        {/* Category Bar with Invisible Sliding Logic - Refined for "Weird" feel */}
-        {/* Removed visible scrollbar track, using 'no-scrollbar' for native feel */}
+        {/* Category Bar with Visible Scrollbar (The "Sliding Drag Bar") */}
         <div className="sticky top-2 z-40 mb-4 px-1">
             <AnimatePresence>
                 {!isSelectionMode && (
@@ -382,9 +379,22 @@ export const HomeView: React.FC<HomeViewProps> = ({
                         exit={{ opacity: 0, y: -20, height: 0 }}
                         className="w-full"
                     >
-                        <div className="bg-white/85 backdrop-blur-xl border border-white/50 shadow-lg shadow-stone-200/30 rounded-full p-1 relative flex flex-col">
-                             <div className="w-full overflow-x-auto touch-pan-x overscroll-contain snap-x snap-proximity pb-0 no-scrollbar">
-                                <div className="flex gap-2 px-1 items-center w-max min-w-full">
+                        {/* 
+                            Visual Design:
+                            - White glass container
+                            - Horizontal scroll allowed with visible styled scrollbar
+                        */}
+                        <div className="bg-white/85 backdrop-blur-xl border border-white/50 shadow-lg shadow-stone-200/30 rounded-2xl p-1.5 relative flex flex-col">
+                             <div className="w-full overflow-x-auto touch-pan-x snap-x snap-proximity 
+                                             [&::-webkit-scrollbar]:h-1.5 
+                                             [&::-webkit-scrollbar-track]:bg-transparent 
+                                             [&::-webkit-scrollbar-track]:mx-2
+                                             [&::-webkit-scrollbar-thumb]:bg-stone-300/60 
+                                             hover:[&::-webkit-scrollbar-thumb]:bg-stone-400/80
+                                             [&::-webkit-scrollbar-thumb]:rounded-full
+                                             pb-2 pt-0.5"
+                             >
+                                <div className="flex gap-2.5 px-1 items-center min-w-max">
                                     {categories.map((cat) => (
                                         <motion.div key={cat} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-shrink-0 snap-center">
                                             <MiniCapsule 
@@ -392,11 +402,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
                                                 active={activeCategory === cat} 
                                                 onClick={() => setActiveCategory(cat)}
                                                 onLongPress={() => handleTagLongPress(cat)}
-                                                className={`!py-1.5 !px-3.5 !text-[10px] shadow-sm transition-all duration-300 ${activeCategory === cat ? '!shadow-md !bg-stone-800 !text-white scale-100 ring-1 ring-stone-800' : '!bg-white !border-stone-100 !text-stone-500 hover:!bg-stone-50 hover:scale-[1.02]'}`}
+                                                className={`!py-1.5 !px-4 !text-[10px] shadow-sm transition-all duration-300 ${activeCategory === cat ? '!shadow-md !bg-stone-800 !text-white scale-100 ring-1 ring-stone-800' : '!bg-white !border-stone-100 !text-stone-500 hover:!bg-stone-50 hover:scale-[1.02]'}`}
                                             />
                                         </motion.div>
                                     ))}
-                                    <div className="w-1 flex-shrink-0" />
+                                    {/* Spacer to allow scrolling past last item slightly */}
+                                    <div className="w-2 flex-shrink-0" />
                                 </div>
                              </div>
                         </div>
@@ -431,8 +442,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 <p className="text-xs tracking-widest">暂无记录</p>
             </div>
         )}
-
-        {/* --- 1. Tag Context Menu --- */}
+        
+        {/* ... (Modals remain unchanged) ... */}
+        {/* Copying modals from previous file content to ensure file completeness */}
         <AnimatePresence>
             {manageTag && !deleteConfirmType && (
                 <motion.div 
@@ -477,8 +489,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 </motion.div>
             )}
         </AnimatePresence>
-
-        {/* --- 2. Exquisite Sort Modal --- */}
         <AnimatePresence>
             {isSortModalOpen && (
                 <motion.div 
@@ -508,8 +518,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 </motion.div>
             )}
         </AnimatePresence>
-
-        {/* --- 3. Confirmation Dialogs --- */}
         <AnimatePresence>
             {deleteConfirmType && (
                 <motion.div 
@@ -526,7 +534,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
                         className="bg-white rounded-2xl p-6 shadow-2xl w-full max-w-xs flex flex-col items-center text-center"
                     >
                         <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center mb-3 text-red-500"><AlertTriangle size={24} /></div>
-                        
                         {deleteConfirmType === 'cards' ? (
                              <>
                                 <h3 className="text-sm font-bold text-stone-800 mb-1">确认删除?</h3>
@@ -550,8 +557,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 </motion.div>
             )}
         </AnimatePresence>
-
-        {/* --- 4. Move Modal --- */}
         <AnimatePresence>
             {showMoveModal && (
                 <motion.div 

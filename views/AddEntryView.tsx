@@ -436,7 +436,7 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
             </div>
         </div>
 
-        {/* Action Bar (Save or Delete) - New Mini Capsule Design */}
+        {/* Action Bar (Save or Delete) - Compact & Elegant Mini Capsule */}
         <div className="fixed bottom-6 left-0 right-0 flex justify-center z-40 pointer-events-none">
             <AnimatePresence mode="wait">
                 {isImageSelectionMode ? (
@@ -471,19 +471,19 @@ export const AddEntryView: React.FC<AddEntryViewProps> = ({ onSave, onCancel, in
                         exit={{ y: 50, opacity: 0 }}
                         onClick={handleSave}
                         disabled={isSaving}
-                        // Refined Design: Mini Capsule, Dark Stone color for elegance
-                        className={`pointer-events-auto px-6 py-2 rounded-full shadow-xl flex items-center gap-2 transition-all duration-300 ${
+                        // Refined Design: Mini Capsule, Vibrant Amber/Orange tone
+                        className={`pointer-events-auto px-5 py-2 rounded-full shadow-xl flex items-center gap-2 transition-all duration-300 ${
                             isSaving 
                                 ? 'bg-stone-300 text-stone-500 cursor-not-allowed' 
-                                : 'bg-stone-900 text-stone-50 hover:bg-black active:scale-95 shadow-stone-400/50'
+                                : 'bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:shadow-orange-200/50 hover:scale-105 active:scale-95'
                         }`}
                     >
                         {isSaving ? (
-                             <div className="w-3 h-3 border-2 border-stone-400 border-t-stone-600 rounded-full animate-spin" />
+                             <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                         ) : (
-                             <Save size={14} strokeWidth={2.5} />
+                             <Save size={13} strokeWidth={2.5} />
                         )}
-                        <span className="text-xs font-bold tracking-widest">{isSaving ? '保存中' : '保存'}</span>
+                        <span className="text-[11px] font-bold tracking-widest">{isSaving ? '保存中' : '保存'}</span>
                     </motion.button>
                 )}
             </AnimatePresence>

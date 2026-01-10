@@ -36,6 +36,7 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
                     mapInstanceRef.current = new window.AMap.Map(mapContainerRef.current, {
                         zoom: 15,
                         resizeEnable: true,
+                        viewMode: '2D', // Use 2D for better compatibility
                         mapStyle: "amap://styles/whitesmoke" // Clean style
                     });
 
@@ -133,6 +134,7 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange 
         const geolocation = new window.AMap.Geolocation({
             enableHighAccuracy: true,
             timeout: 10000,
+            zoomToAccuracy: true
         });
 
         geolocation.getCurrentPosition(function(status: string, result: any){
